@@ -7,8 +7,9 @@ and what `pc` opens from any terminal (`pc` is installed to `~/.local/bin` by `i
 
 - Top: today's calendar. Middle: tasks, grouped like the receipt (`daily.group_by_list`), with
   lateness markers, first note line and tags.
-- **Click a task** (or hover + click) to complete it in Nextcloud; click again to reopen. The row
-  shows `[x]` with strikethrough while done. Changes go through the daemon API
+- **Click a task** to complete it in Nextcloud; click again to reopen. Optimistic UI: the row
+  flips to `[x]` with strikethrough immediately and only reverts (with an error toast) if
+  Nextcloud rejects the change. Changes go through the daemon API
   (`POST /api/tasks/{uid}/done`), which writes to CalDAV (`complete()`/`uncomplete()`) or the Deck
   API (`done` field; the PUT must include `owner`).
 - Bottom: AI panel with the morning briefing and an input line.
@@ -23,9 +24,12 @@ Config section `ai`: `enabled`, `url` (default `http://localhost:11434`), `model
 
 - `POST /api/ai/summary`: short briefing from the agenda (about 8 s warm on the 12B model).
 - `POST /api/ai/chat {messages}`: natural-language task management. The daemon sends the agenda
-  (with uids) and the available lists as system context and offers four tools:
-  `complete_task`, `reopen_task`, `edit_task`, `create_task`. Tool calls are executed by the
-  daemon and the loop continues for up to four rounds. The reply and the list of performed
+  (with uids), the available lists, the writable calendars and each Deck board's labels and
+  users as system context. Tools: `complete_task`, `reopen_task`, `edit_task`, `create_task`
+  (title, notes, due, start, priority, tags/labels, location, assignees, stack), `create_event`
+  (in a chosen calendar, all-day or timed), `get_settings`, `set_setting`, `print_receipt`,
+  `printer_action`. Tool calls are executed by the daemon and the loop continues for up to
+  four rounds. The reply and the list of performed
   actions come back; the terminal view refreshes after actions.
 - `think` is off by default: gemma4 otherwise spends thousands of hidden reasoning tokens per
   answer (a briefing took over two minutes instead of eight seconds).
@@ -43,8 +47,11 @@ daemon's HTTP API:
 | `get_agenda` | today's agenda |
 | `list_tasks` | all open tasks with uids, and lists/stacks for creation |
 | `complete_task(uid)` / `reopen_task(uid)` | done / undone |
-| `edit_task(uid, title?, due?, notes?)` | edit (`due=""` clears) |
-| `create_task(list_id, title, due?, notes?)` | list id or `board/stack` |
+| `edit_task(uid, …)` | title, due, start, notes, priority, tags, location, assignees, stack |
+| `create_task(list_id, title, …)` | list id or `board/stack`, same fields |
+| `list_calendars` / `create_event(calendar_id, title, start, end?, …)` | events in a Nextcloud calendar |
+| `get_settings` / `set_setting(section, key, value)` | read / change configuration |
+| `printer_action(action)` | test_print, density_sweep, feed, test_notification, full_cycle, poll |
 | `print_today(force?, layout?)` | print receipt |
 | `daemon_status` | health |
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date
+from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
 import httpx
@@ -47,7 +47,9 @@ TOOLS: list[dict[str, Any]] = [
         "function": {
             "name": "edit_task",
             "description": (
-                "Change a task's title, due date (YYYY-MM-DD, empty string clears) or notes."
+                "Change fields of a task. Dates YYYY-MM-DD, empty string clears. Tasks-only: "
+                "start, priority (1 high .. 9 low), location. Deck-only: assignees (user ids), "
+                "stack (target stack id). tags = Tasks categories or Deck label names."
             ),
             "parameters": {
                 "type": "object",
@@ -55,7 +57,13 @@ TOOLS: list[dict[str, Any]] = [
                     "uid": {"type": "string"},
                     "title": {"type": "string"},
                     "due": {"type": "string"},
+                    "start": {"type": "string"},
                     "notes": {"type": "string"},
+                    "priority": {"type": "integer"},
+                    "tags": {"type": "array", "items": {"type": "string"}},
+                    "location": {"type": "string"},
+                    "assignees": {"type": "array", "items": {"type": "string"}},
+                    "stack": {"type": "integer"},
                 },
                 "required": ["uid"],
             },
@@ -121,23 +129,58 @@ TOOLS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "create_task",
-            "description": "Create a new task in a task list or Deck stack.",
+            "description": (
+                "Create a task in a task list or Deck stack. Same optional fields as edit_task."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "list_id": {"type": "string", "description": "id from the available lists"},
                     "title": {"type": "string"},
-                    "due": {"type": "string", "description": "YYYY-MM-DD, optional"},
+                    "due": {"type": "string"},
+                    "start": {"type": "string"},
                     "notes": {"type": "string"},
+                    "priority": {"type": "integer"},
+                    "tags": {"type": "array", "items": {"type": "string"}},
+                    "location": {"type": "string"},
+                    "assignees": {"type": "array", "items": {"type": "string"}},
                 },
                 "required": ["list_id", "title"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_event",
+            "description": (
+                "Create a calendar event in one of the user's Nextcloud calendars. start/end: "
+                "YYYY-MM-DD for all-day or YYYY-MM-DDTHH:MM for timed (end defaults to +1 h)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "calendar_id": {"type": "string"},
+                    "title": {"type": "string"},
+                    "start": {"type": "string"},
+                    "end": {"type": "string"},
+                    "description": {"type": "string"},
+                    "location": {"type": "string"},
+                },
+                "required": ["calendar_id", "title", "start"],
             },
         },
     },
 ]
 
 
-def agenda_context(agenda: DailyAgenda, lists: list[dict[str, Any]], today: date) -> str:
+def agenda_context(
+    agenda: DailyAgenda,
+    lists: list[dict[str, Any]],
+    today: date,
+    calendars: list[dict[str, Any]] | None = None,
+    deck_meta: dict[int, dict[str, Any]] | None = None,
+) -> str:
     lines = [f"Today is {today.isoformat()} ({today.strftime('%A')})."]
     if agenda.events:
         lines.append("Calendar today:")
@@ -168,12 +211,23 @@ def agenda_context(agenda: DailyAgenda, lists: list[dict[str, Any]], today: date
     lines.append("Available lists for new tasks (id | name):")
     for ls in lists:
         lines.append(f"- {ls['id']} | {ls['name']} ({ls['source']})")
+    if calendars:
+        lines.append("Calendars for new events (id | name):")
+        for c in calendars:
+            lines.append(f"- {c['id']} | {c['name']}")
+    if deck_meta:
+        lines.append("Deck boards: labels and assignable user ids:")
+        for bid, meta in deck_meta.items():
+            lines.append(
+                f"- board {bid}: labels {list(meta['labels'])}; users {list(meta['users'])}"
+            )
     return "\n".join(lines)
 
 
 SYSTEM = (
     "You are Printcrastinator, a terse assistant for a personal to-do list synced with Nextcloud. "
-    "You can complete, reopen, edit and create tasks, read and change settings, print the receipt "
+    "You can complete, reopen, edit and create tasks (all fields), create calendar events, "
+    "read and change settings, print the receipt "
     "and run printer tests with the provided tools. Always use the uid "
     "exactly as listed. When the user refers to a task by a rough description, pick the best "
     "match; if it is ambiguous, ask. After tool calls, confirm in one short sentence. Answer in "
@@ -220,13 +274,19 @@ class Assistant:
         except Exception as exc:
             return f"ollama unreachable at {self.cfg.url}: {exc}"
 
-    def _system(self, agenda: DailyAgenda) -> str:
-        return SYSTEM + agenda_context(agenda, self.daemon.task_lists(), date.today())
+    async def _system(self, agenda: DailyAgenda) -> str:
+        return SYSTEM + agenda_context(
+            agenda,
+            self.daemon.task_lists(),
+            date.today(),
+            self.daemon.calendars(),
+            await self.daemon.deck_meta(),
+        )
 
     async def summary(self, agenda: DailyAgenda) -> str:
         msg = await self._chat(
             [
-                {"role": "system", "content": self._system(agenda)},
+                {"role": "system", "content": await self._system(agenda)},
                 {"role": "user", "content": SUMMARY_PROMPT},
             ],
             tools=False,
@@ -243,17 +303,33 @@ class Assistant:
                 t = await d.set_task_done(args["uid"], False)
                 return f"reopened: {t.title}"
             if name == "edit_task":
-                due: Any = "keep"
-                if "due" in args and args["due"] is not None:
-                    due = date.fromisoformat(args["due"]) if args["due"] else None
-                t = await d.update_task(args["uid"], args.get("title"), due, args.get("notes"))
+                f = {k: v for k, v in args.items() if k != "uid"}
+                for k in ("due", "start"):
+                    if k in f:
+                        f[k] = date.fromisoformat(f[k]) if f[k] else None
+                t = await d.update_task(args["uid"], **f)
                 return f"edited: {args.get('title') or t.title}"
             if name == "create_task":
-                due = date.fromisoformat(args["due"]) if args.get("due") else None
-                uid = await d.create_task(
-                    args["list_id"], args["title"], due, args.get("notes", "")
-                )
+                f = {k: v for k, v in args.items() if k not in ("list_id", "title")}
+                for k in ("due", "start"):
+                    if k in f:
+                        f[k] = date.fromisoformat(f[k]) if f[k] else None
+                uid = await d.create_task(args["list_id"], args["title"], **f)
                 return f"created {uid}: {args['title']}"
+            if name == "create_event":
+
+                def when(v: str):
+                    return date.fromisoformat(v) if len(v) == 10 else datetime.fromisoformat(v)
+
+                uid = await d.create_event(
+                    args["calendar_id"],
+                    args["title"],
+                    when(args["start"]),
+                    when(args["end"]) if args.get("end") else None,
+                    args.get("description", ""),
+                    args.get("location", ""),
+                )
+                return f"event created: {args['title']} ({args['start']})"
             if name == "get_settings":
                 return json.dumps(d.settings_dict())
             if name == "set_setting":
@@ -290,7 +366,7 @@ class Assistant:
 
     async def chat(self, history: list[dict[str, str]], agenda: DailyAgenda) -> dict[str, Any]:
         """history: [{role, content}] from the client. Returns reply + actions performed."""
-        messages: list[dict[str, Any]] = [{"role": "system", "content": self._system(agenda)}]
+        messages: list[dict[str, Any]] = [{"role": "system", "content": await self._system(agenda)}]
         messages.extend(history[-12:])
         actions: list[str] = []
         for _ in range(4):

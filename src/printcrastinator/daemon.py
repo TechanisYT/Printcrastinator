@@ -445,51 +445,100 @@ class Daemon:
         self._wake.set()
         return t
 
-    async def update_task(
-        self,
-        uid: str,
-        title: str | None = None,
-        due: date | None | str = "keep",
-        notes: str | None = None,
-    ) -> TaskItem:
+    @staticmethod
+    def _deck_due(due: Any) -> Any:
+        if due == "keep" or due is None:
+            return due
+        if isinstance(due, date):
+            return f"{due.isoformat()}T12:00:00+00:00"
+        return str(due)
+
+    async def update_task(self, uid: str, **fields: Any) -> TaskItem:
+        """fields (all optional): title, notes, due (date|None|'keep'), start, priority, tags,
+        location, labels, assignees, stack. Irrelevant fields are ignored per source."""
         t = self.find_task(uid)
         if t is None:
             raise LookupError(f"unknown task {uid}")
         nc = self.cfg.nextcloud
+        fields = {k: v for k, v in fields.items() if v is not None or k in ("due", "start")}
         if t.source == "deck":
             assert t.board_id is not None and t.stack_id is not None and t.card_id is not None
-            due_s: str | None = "keep"
-            if due != "keep":
-                due_s = f"{due.isoformat()}T12:00:00+00:00" if isinstance(due, date) else None
-            await DeckClient(nc).update_card(t.board_id, t.stack_id, t.card_id, title, due_s, notes)
+            f = dict(fields)
+            if "due" in f:
+                f["due"] = self._deck_due(f["due"])
+            if "tags" in f and "labels" not in f:
+                f["labels"] = f["tags"]  # tags == Deck labels
+            await DeckClient(nc).update_card(t.board_id, t.stack_id, t.card_id, **f)
         else:
-            await asyncio.to_thread(
-                CalDavClient(nc, self.db).update_task, t.uid, t.list_id, title, due, notes
-            )
-        self.db.log("task", True, f"edited: {title or t.title}")
+            f = {k: v for k, v in fields.items() if k not in ("labels", "assignees", "stack")}
+            await asyncio.to_thread(CalDavClient(nc, self.db).update_task, t.uid, t.list_id, **f)
+        self.db.log("task", True, f"edited: {fields.get('title') or t.title}")
         self._wake.set()
         return t
 
-    async def create_task(
-        self, list_id: str, title: str, due: date | None = None, notes: str = ""
-    ) -> str:
-        """list_id is a CalDAV list id or 'board/stack' for Deck."""
+    async def create_task(self, list_id: str, title: str, **fields: Any) -> str:
+        """list_id is a CalDAV list id or 'board/stack' for Deck. fields as in update_task."""
         nc = self.cfg.nextcloud
+        fields = {k: v for k, v in fields.items() if v is not None}
         if "/" in list_id:
             b, st = (int(x) for x in list_id.split("/", 1))
-            due_s = f"{due.isoformat()}T12:00:00+00:00" if due else None
-            cid = await DeckClient(nc).create_card(b, st, title, due_s, notes)
+            f = dict(fields)
+            if "due" in f:
+                f["due"] = self._deck_due(f["due"])
+            if "tags" in f and "labels" not in f:
+                f["labels"] = f["tags"]
+            cid = await DeckClient(nc).create_card(b, st, title, **f)
             uid = f"deck:{cid}"
         else:
+            f = {k: v for k, v in fields.items() if k not in ("labels", "assignees", "stack")}
             uid = await asyncio.to_thread(
-                CalDavClient(nc, self.db).create_task, list_id, title, due, notes
+                CalDavClient(nc, self.db).create_task, list_id, title, **f
             )
-        self.db.mark_seen(
-            [(uid, "deck" if "/" in list_id else "tasks")]
-        )  # no slip for own creations
+        self.db.mark_seen([(uid, "deck" if "/" in list_id else "tasks")])  # no slip for own
         self.db.log("task", True, f"created: {title}")
         self._wake.set()
         return uid
+
+    async def create_event(
+        self,
+        calendar_id: str,
+        title: str,
+        start: datetime | date,
+        end: datetime | date | None = None,
+        description: str = "",
+        location: str = "",
+    ) -> str:
+        uid = await asyncio.to_thread(
+            CalDavClient(self.cfg.nextcloud, self.db).create_event,
+            calendar_id,
+            title,
+            start,
+            end,
+            description=description,
+            location=location,
+        )
+        self.db.log("event", True, f"created: {title}")
+        self._wake.set()
+        return uid
+
+    def calendars(self) -> list[dict[str, Any]]:
+        """Writable Nextcloud calendars (extras are read-only)."""
+        return [
+            {"id": c.id, "name": c.name}
+            for c in self.state.collections
+            if c.vevent and not c.id.startswith("extra:")
+        ]
+
+    async def deck_meta(self) -> dict[int, dict[str, Any]]:
+        """Labels and users per board, for the AI context."""
+        out: dict[int, dict[str, Any]] = {}
+        deck = DeckClient(self.cfg.nextcloud)
+        for bid in sorted({st.board_id for st in self.state.stacks}):
+            try:
+                out[bid] = await deck.board_meta(bid)
+            except Exception as exc:  # noqa: BLE001
+                log.debug("board meta %s: %s", bid, exc)
+        return out
 
     def task_lists(self) -> list[dict[str, Any]]:
         out = [

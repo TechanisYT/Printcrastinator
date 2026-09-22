@@ -58,22 +58,55 @@ def build_server():
 
     @srv.tool()
     def edit_task(
-        uid: str, title: str | None = None, due: str | None = None, notes: str | None = None
+        uid: str,
+        title: str | None = None,
+        due: str | None = None,
+        start: str | None = None,
+        notes: str | None = None,
+        priority: int | None = None,
+        tags: list[str] | None = None,
+        location: str | None = None,
+        assignees: list[str] | None = None,
+        stack: int | None = None,
     ) -> dict:
-        """Edit title, due date (YYYY-MM-DD, "" clears, omit to keep) or notes of a task."""
-        body = {
-            k: v for k, v in {"title": title, "due": due, "notes": notes}.items() if v is not None
-        }
+        """Edit a task. Dates YYYY-MM-DD ("" clears, omit keeps). tags = Tasks categories or
+        Deck label names; assignees/stack are Deck only; start/priority/location Tasks only."""
+        body = {k: v for k, v in locals().items() if k != "uid" and v is not None}
         return _api("POST", f"/api/tasks/{uid}/edit", json=body)
 
     @srv.tool()
-    def create_task(list_id: str, title: str, due: str | None = None, notes: str = "") -> dict:
+    def create_task(
+        list_id: str,
+        title: str,
+        due: str | None = None,
+        start: str | None = None,
+        notes: str = "",
+        priority: int | None = None,
+        tags: list[str] | None = None,
+        location: str | None = None,
+        assignees: list[str] | None = None,
+    ) -> dict:
         """Create a task. list_id is a task list id or 'board/stack' for Deck (see list_tasks)."""
-        return _api(
-            "POST",
-            "/api/tasks",
-            json={"list_id": list_id, "title": title, "due": due, "notes": notes},
-        )
+        body = {k: v for k, v in locals().items() if v is not None}
+        return _api("POST", "/api/tasks", json=body)
+
+    @srv.tool()
+    def list_calendars() -> dict:
+        """Writable Nextcloud calendars for create_event."""
+        return _api("GET", "/api/calendars")
+
+    @srv.tool()
+    def create_event(
+        calendar_id: str,
+        title: str,
+        start: str,
+        end: str | None = None,
+        description: str = "",
+        location: str = "",
+    ) -> dict:
+        """Create an event. start/end: YYYY-MM-DD (all-day) or YYYY-MM-DDTHH:MM (timed)."""
+        body = {k: v for k, v in locals().items() if v is not None}
+        return _api("POST", "/api/events", json=body)
 
     @srv.tool()
     def print_today(force: bool = False, layout: str = "") -> dict:

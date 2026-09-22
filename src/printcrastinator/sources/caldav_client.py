@@ -192,36 +192,66 @@ class CalDavClient:
         todo = self._find_todo(uid, list_id)
         todo.uncomplete()
 
-    def create_task(
-        self, list_id: str, title: str, due: date | None = None, notes: str = ""
-    ) -> str:
+    def _collection(self, list_id: str, *, vtodo: bool = True) -> caldav.Calendar:
         for col in self.collections():
-            if col.id == list_id and col.vtodo:
-                kwargs: dict[str, Any] = {"summary": title}
-                if due:
-                    kwargs["due"] = due
-                if notes:
-                    kwargs["description"] = notes
-                todo = self._calendar(col).save_todo(**kwargs)
-                return str(todo.icalendar_component.get("UID", ""))
-        raise LookupError(f"task list {list_id} not found")
+            if col.id == list_id and (col.vtodo if vtodo else col.vevent):
+                return self._calendar(col)
+        raise LookupError(f"{'task list' if vtodo else 'calendar'} {list_id} not found")
 
-    def update_task(
-        self,
-        uid: str,
-        list_id: str,
-        title: str | None = None,
-        due: date | None | str = "keep",
-        notes: str | None = None,
-    ) -> None:
-        todo = self._find_todo(uid, list_id)
+    @staticmethod
+    def _apply_todo_fields(comp: Any, fields: dict[str, Any]) -> None:
+        """fields: title, notes, due, start (date|None), priority (0-9), tags (list), location."""
+        if fields.get("title") is not None:
+            comp["SUMMARY"] = fields["title"]
+        if fields.get("notes") is not None:
+            comp["DESCRIPTION"] = fields["notes"]
+        if fields.get("location") is not None:
+            comp["LOCATION"] = fields["location"]
+        for key, prop in (("due", "DUE"), ("start", "DTSTART")):
+            if key in fields and fields[key] != "keep":
+                comp.pop(prop, None)
+                if fields[key] is not None:
+                    comp.add(prop, fields[key])
+        if fields.get("priority") is not None:
+            comp.pop("PRIORITY", None)
+            comp.add("PRIORITY", int(fields["priority"]))
+        if fields.get("tags") is not None:
+            comp.pop("CATEGORIES", None)
+            if fields["tags"]:
+                comp.add("CATEGORIES", list(fields["tags"]))
+
+    def create_task(self, list_id: str, title: str, **fields: Any) -> str:
+        cal = self._collection(list_id)
+        todo = cal.save_todo(summary=title)
         comp = todo.icalendar_component
-        if title is not None:
-            comp["SUMMARY"] = title
-        if notes is not None:
-            comp["DESCRIPTION"] = notes
-        if due != "keep":
-            comp.pop("DUE", None)
-            if due is not None:
-                comp.add("DUE", due)
+        self._apply_todo_fields(comp, {k: v for k, v in fields.items() if k != "title"})
         todo.save()
+        return str(comp.get("UID", ""))
+
+    def update_task(self, uid: str, list_id: str, **fields: Any) -> None:
+        todo = self._find_todo(uid, list_id)
+        self._apply_todo_fields(todo.icalendar_component, fields)
+        todo.save()
+
+    def create_event(
+        self,
+        calendar_id: str,
+        title: str,
+        start: datetime | date,
+        end: datetime | date | None = None,
+        *,
+        description: str = "",
+        location: str = "",
+    ) -> str:
+        cal = self._collection(calendar_id, vtodo=False)
+        if end is None:
+            end = start + (
+                timedelta(days=1) if not isinstance(start, datetime) else timedelta(hours=1)
+            )
+        kwargs: dict[str, Any] = {"summary": title, "dtstart": start, "dtend": end}
+        if description:
+            kwargs["description"] = description
+        if location:
+            kwargs["location"] = location
+        ev = cal.save_event(**kwargs)
+        return str(ev.icalendar_component.get("UID", ""))

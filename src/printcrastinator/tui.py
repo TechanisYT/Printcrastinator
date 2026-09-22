@@ -55,7 +55,7 @@ class TaskRow(Static):
                 marker = f"  [green]{i18n.label(self.lang, 'today_word')}[/green]"
             else:
                 marker = f"  [dim]{due.strftime('%d.%m')}[/dim]"
-        busy = "  [yellow]…[/yellow]" if self.busy else ""
+        busy = ""  # optimistic UI: no spinner, the row already shows the new state
         src = i18n.label(self.lang, "src_" + t["source"])
         where = f"  [dim]{t['list_name']} · {src}[/dim]" if self.show_list else ""
         lines = [f"{box}{title}{marker}{where}{busy}"]
@@ -237,15 +237,18 @@ class TaskView(App):
 
     @work(group="toggle")
     async def toggle_task(self, row: TaskRow) -> None:
+        """Optimistic: flip immediately, revert with an error only if Nextcloud refuses."""
         if row.busy:
             return
+        target = not row.done
+        row.done = target
         row.busy = True
         row.refresh_text()
         try:
-            await self._post(f"/api/tasks/{row.item['uid']}/done", params={"done": not row.done})
-            row.done = not row.done
+            await self._post(f"/api/tasks/{row.item['uid']}/done", params={"done": target})
         except Exception as exc:
-            self.notify(f"failed: {exc}", severity="error", timeout=6)
+            row.done = not target
+            self.notify(f"{row.item['title'][:40]}: {exc}", severity="error", timeout=8)
         row.busy = False
         row.refresh_text()
 

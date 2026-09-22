@@ -103,33 +103,98 @@ class DeckClient:
     async def uncomplete_card(self, board_id: int, stack_id: int, card_id: int) -> None:
         await self._put_card(board_id, stack_id, card_id, done=None)
 
-    async def update_card(
-        self,
-        board_id: int,
-        stack_id: int,
-        card_id: int,
-        title: str | None = None,
-        due: str | None = "keep",
-        notes: str | None = None,
-    ) -> None:
-        changes: dict[str, Any] = {}
-        if title is not None:
-            changes["title"] = title
-        if notes is not None:
-            changes["description"] = notes
-        if due != "keep":
-            changes["duedate"] = due
-        await self._put_card(board_id, stack_id, card_id, **changes)
+    async def board_meta(self, board_id: int) -> dict[str, Any]:
+        """Labels and users of a board (for assigning by name)."""
+        async with self._client() as c:
+            r = await c.get(f"/boards/{board_id}")
+            r.raise_for_status()
+            b = r.json()
+        return {
+            "labels": {lab["title"]: int(lab["id"]) for lab in b.get("labels", [])},
+            "users": {u["uid"]: u.get("displayname", u["uid"]) for u in b.get("users", [])},
+        }
 
-    async def create_card(
-        self, board_id: int, stack_id: int, title: str, due: str | None = None, notes: str = ""
-    ) -> int:
+    async def _sync_labels(
+        self, c: httpx.AsyncClient, board_id: int, stack_id: int, card_id: int, wanted: list[str]
+    ) -> None:
+        meta = await self.board_meta(board_id)
+        card = await self._card(c, board_id, stack_id, card_id)
+        have = {lab["title"]: int(lab["id"]) for lab in card.get("labels") or []}
+        base = f"/boards/{board_id}/stacks/{stack_id}/cards/{card_id}"
+        for title, lid in have.items():
+            if title not in wanted:
+                (await c.put(f"{base}/removeLabel", json={"labelId": lid})).raise_for_status()
+        for title in wanted:
+            if title not in have:
+                lid = meta["labels"].get(title)
+                if lid is None:
+                    raise LookupError(f"label {title!r} not on board; have {list(meta['labels'])}")
+                (await c.put(f"{base}/assignLabel", json={"labelId": lid})).raise_for_status()
+
+    async def _sync_assignees(
+        self, c: httpx.AsyncClient, board_id: int, stack_id: int, card_id: int, wanted: list[str]
+    ) -> None:
+        card = await self._card(c, board_id, stack_id, card_id)
+        have = {
+            (a.get("participant") or {}).get("uid", "") for a in card.get("assignedUsers") or []
+        }
+        base = f"/boards/{board_id}/stacks/{stack_id}/cards/{card_id}"
+        for uid in have - set(wanted):
+            (await c.put(f"{base}/unassignUser", json={"userId": uid})).raise_for_status()
+        for uid in set(wanted) - have:
+            (await c.put(f"{base}/assignUser", json={"userId": uid})).raise_for_status()
+
+    async def update_card(self, board_id: int, stack_id: int, card_id: int, **fields: Any) -> None:
+        """fields: title, notes, due (ISO str | None | 'keep'), labels (list of titles),
+        assignees (list of user ids), stack (target stack id in the same board)."""
+        changes: dict[str, Any] = {}
+        if fields.get("title") is not None:
+            changes["title"] = fields["title"]
+        if fields.get("notes") is not None:
+            changes["description"] = fields["notes"]
+        if "due" in fields and fields["due"] != "keep":
+            changes["duedate"] = fields["due"]
+        if changes:
+            await self._put_card(board_id, stack_id, card_id, **changes)
+        async with self._client() as c:
+            if fields.get("labels") is not None:
+                await self._sync_labels(c, board_id, stack_id, card_id, list(fields["labels"]))
+            if fields.get("assignees") is not None:
+                await self._sync_assignees(
+                    c, board_id, stack_id, card_id, list(fields["assignees"])
+                )
+        if fields.get("stack") is not None and int(fields["stack"]) != stack_id:
+            await self.move_card(card_id, int(fields["stack"]))
+
+    async def move_card(self, card_id: int, stack_id: int) -> None:
+        """The public API's reorder endpoint answers 200 but does not move cards between
+        stacks (Deck 1.14); the internal route the web UI uses does."""
+        async with httpx.AsyncClient(
+            base_url=f"{self.nc.base_url}/index.php/apps/deck",
+            auth=(self.nc.username, self.nc.app_password),
+            headers={"OCS-APIRequest": "true", "Accept": "application/json"},
+            timeout=30,
+        ) as c:
+            r = await c.put(
+                f"/cards/{card_id}/reorder",
+                json={"cardId": card_id, "stackId": stack_id, "order": 0},
+            )
+            r.raise_for_status()
+
+    async def create_card(self, board_id: int, stack_id: int, title: str, **fields: Any) -> int:
         async with self._client() as c:
             body: dict[str, Any] = {"title": title, "type": "plain", "order": 999}
-            if due:
-                body["duedate"] = due
-            if notes:
-                body["description"] = notes
+            if fields.get("due"):
+                body["duedate"] = fields["due"]
+            if fields.get("notes"):
+                body["description"] = fields["notes"]
             r = await c.post(f"/boards/{board_id}/stacks/{stack_id}/cards", json=body)
             r.raise_for_status()
-            return int(r.json()["id"])
+            card_id = int(r.json()["id"])
+            if fields.get("labels"):
+                await self._sync_labels(c, board_id, stack_id, card_id, list(fields["labels"]))
+            if fields.get("assignees"):
+                await self._sync_assignees(
+                    c, board_id, stack_id, card_id, list(fields["assignees"])
+                )
+            return card_id

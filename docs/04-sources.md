@@ -37,6 +37,14 @@ config file, not against another process running as the same user.
 - Per-stack "always print" switch → `stack_rules(board_id, stack_id)`.
 - `TaskItem.uid` = `deck:<card id>`; `source = "deck"`; `list_name = "<board> · <stack>"`.
 
+### Write-back
+
+Tasks: `complete()`/`uncomplete()`, `save_todo`, and field updates on the VTODO (SUMMARY,
+DESCRIPTION, DUE, DTSTART, PRIORITY, CATEGORIES, LOCATION). Deck: card PUT (must include
+`owner`), `assignLabel`/`removeLabel`, `assignUser`/`unassignUser`; moving a card between
+stacks uses the internal `PUT /apps/deck/cards/{id}/reorder` because the public API's reorder
+endpoint answers 200 without moving (Deck 1.14). Events: `save_event` into a chosen calendar.
+
 ## Calendar (CalDAV VEVENT)
 
 - Same CalDAV root; every collection supporting VEVENT is a calendar.

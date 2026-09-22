@@ -17,7 +17,22 @@ from .render import image as render_image
 class TaskEdit(BaseModel):
     title: str | None = None
     due: str | None = None  # ISO date, "" to clear, omitted to keep
+    start: str | None = None  # ISO date, "" to clear (Tasks only)
     notes: str | None = None
+    priority: int | None = None  # 0-9, Tasks only
+    tags: list[str] | None = None  # Tasks categories / Deck labels
+    location: str | None = None  # Tasks only
+    assignees: list[str] | None = None  # Deck user ids
+    stack: int | None = None  # Deck: move to this stack id (same board)
+
+
+class EventCreate(BaseModel):
+    calendar_id: str
+    title: str
+    start: str  # ISO date (all-day) or ISO datetime
+    end: str | None = None
+    description: str = ""
+    location: str = ""
 
 
 class ChatBody(BaseModel):
@@ -34,7 +49,16 @@ class TaskCreate(BaseModel):
     list_id: str
     title: str
     due: str | None = None
+    start: str | None = None
     notes: str = ""
+    priority: int | None = None
+    tags: list[str] | None = None
+    location: str | None = None
+    assignees: list[str] | None = None
+
+
+def _parse_when(v: str) -> datetime | date:
+    return date.fromisoformat(v) if len(v) == 10 else datetime.fromisoformat(v)
 
 
 def _parse_due(v: str | None) -> date | None | str:
@@ -68,8 +92,13 @@ def make_router(daemon: Daemon) -> APIRouter:
 
     @r.post("/tasks/{uid}/edit")
     async def task_edit(uid: str, body: TaskEdit):
+        fields: dict = body.model_dump(exclude_none=True)
+        if "due" in fields:
+            fields["due"] = _parse_due(body.due)
+        if "start" in fields:
+            fields["start"] = _parse_due(body.start)
         try:
-            t = await daemon.update_task(uid, body.title, _parse_due(body.due), body.notes)
+            t = await daemon.update_task(uid, **fields)
         except LookupError as exc:
             raise HTTPException(404, str(exc)) from exc
         except Exception as exc:
@@ -78,15 +107,36 @@ def make_router(daemon: Daemon) -> APIRouter:
 
     @r.post("/tasks")
     async def task_create(body: TaskCreate):
+        fields: dict = body.model_dump(exclude_none=True)
+        list_id, title = fields.pop("list_id"), fields.pop("title")
+        for k in ("due", "start"):
+            if fields.get(k):
+                fields[k] = date.fromisoformat(fields[k])
+            elif k in fields:
+                fields.pop(k)
         try:
-            uid = await daemon.create_task(
-                body.list_id,
-                body.title,
-                date.fromisoformat(body.due) if body.due else None,
-                body.notes,
-            )
+            uid = await daemon.create_task(list_id, title, **fields)
         except Exception as exc:
             raise HTTPException(502, f"Nextcloud create failed: {exc}") from exc
+        return {"uid": uid}
+
+    @r.get("/calendars")
+    async def calendars():
+        return {"calendars": daemon.calendars()}
+
+    @r.post("/events")
+    async def event_create(body: EventCreate):
+        try:
+            uid = await daemon.create_event(
+                body.calendar_id,
+                body.title,
+                _parse_when(body.start),
+                _parse_when(body.end) if body.end else None,
+                body.description,
+                body.location,
+            )
+        except Exception as exc:
+            raise HTTPException(502, f"Nextcloud event create failed: {exc}") from exc
         return {"uid": uid}
 
     @r.get("/status")
@@ -120,10 +170,6 @@ def make_router(daemon: Daemon) -> APIRouter:
         return await daemon.maybe_print_daily(
             force=force, reason="api", layout_mode=layout_mode or None
         )
-
-    @r.post("/notify/test")
-    async def notify_test():
-        return {"result": daemon.test_notification()}
 
     @r.get("/settings")
     async def get_settings():
