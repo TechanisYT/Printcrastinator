@@ -162,6 +162,10 @@ class ScreenConfig:
 class UiConfig:
     language: str = "en"
     dark: bool = True
+    # Terminal view: put the cursor into the AI input on start; enable the single-key
+    # shortcuts (r refresh, p print, t print tomorrow, a focus AI). q always quits.
+    tui_focus_ai: bool = True
+    tui_shortcuts: bool = False
 
 
 @dataclass

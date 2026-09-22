@@ -739,6 +739,13 @@ def sec_settings(daemon: Daemon, dark: ui.dark_mode) -> None:
             "Desktop notification when the daily check runs", value=cfg.screen.notify
         )
         term_sw = ui.switch("Terminal window at login (autostart entry)", value=cfg.screen.terminal)
+        focus_sw = ui.switch(
+            "Terminal view: start with the cursor in the AI field", value=cfg.ui.tui_focus_ai
+        )
+        keys_sw = ui.switch(
+            "Terminal view: single-key shortcuts (r refresh, p print, t tomorrow, a AI field)",
+            value=cfg.ui.tui_shortcuts,
+        )
         dark_sw = ui.switch(
             "Dark mode", value=cfg.ui.dark, on_change=lambda e: dark.set_value(bool(e.value))
         )
@@ -784,7 +791,13 @@ def sec_settings(daemon: Daemon, dark: ui.dark_mode) -> None:
             max_height=int(logo_h.value),
             dither=bool(logo_dither.value),
         )
-        cfg.ui = replace(cfg.ui, language=lang.value, dark=bool(dark_sw.value))
+        cfg.ui = replace(
+            cfg.ui,
+            language=lang.value,
+            dark=bool(dark_sw.value),
+            tui_focus_ai=bool(focus_sw.value),
+            tui_shortcuts=bool(keys_sw.value),
+        )
         cfg.slips = replace(
             cfg.slips,
             enabled_tasks=bool(s_tasks.value),

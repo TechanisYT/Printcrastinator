@@ -145,7 +145,15 @@ class TaskView(App):
         if not self.ai_enabled:
             inp.placeholder = "AI disabled in settings"
             inp.disabled = True
+        elif self.cfg.ui.tui_focus_ai:
+            inp.focus()
         self.load_agenda(summary=True)
+
+    def check_action(self, action: str, parameters: tuple) -> bool | None:
+        """Shortcuts other than quit/escape are only active when enabled in settings."""
+        if action in ("refresh", "print_receipt", "print_tomorrow", "focus_ai"):
+            return True if self.cfg.ui.tui_shortcuts else None
+        return True
 
     # ---- data ------------------------------------------------------------------------------------
 
