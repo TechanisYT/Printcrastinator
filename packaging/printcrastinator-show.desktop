@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Printcrastinator
+Comment=Show today's tasks and print the daily receipt
+Exec=sh -c 'alacritty --title Printcrastinator -e uv run --frozen --project "$HOME/.local/share/printcrastinator/src" printcrastinator show'
+Terminal=false
+X-GNOME-Autostart-enabled=true
+X-KDE-autostart-after=panel

@@ -1,0 +1,3 @@
+# Qian Anjet 58 mini thermal printer (STMicroelectronics USB printer class)
+# Grants the active seat user access to /dev/usb/lp* without adding them to group lp.
+SUBSYSTEM=="usbmisc", KERNEL=="lp*", ATTRS{idVendor}=="0456", ATTRS{idProduct}=="0808", TAG+="uaccess"

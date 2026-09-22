@@ -1,0 +1,13 @@
+[Unit]
+Description=Printcrastinator daemon and web UI
+
+[Service]
+Type=simple
+WorkingDirectory=%h/.local/share/printcrastinator/src
+ExecStart=/usr/bin/uv run --frozen --project %h/.local/share/printcrastinator/src printcrastinator serve
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target
