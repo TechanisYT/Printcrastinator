@@ -34,6 +34,16 @@ class EventCreate(BaseModel):
     end: str | None = None
     description: str = ""
     location: str = ""
+    attendees: list[str] | None = None  # "Name <mail>" or "mail"
+
+
+class EventEdit(BaseModel):
+    title: str | None = None
+    start: str | None = None
+    end: str | None = None
+    description: str | None = None
+    location: str | None = None
+    attendees: list[str] | None = None  # replaces the whole set; [] removes all
 
 
 class Selection(BaseModel):
@@ -160,10 +170,35 @@ def make_router(daemon: Daemon) -> APIRouter:
                 _parse_when(body.end) if body.end else None,
                 body.description,
                 body.location,
+                body.attendees,
             )
         except Exception as exc:
             raise HTTPException(502, f"Nextcloud event create failed: {exc}") from exc
         return {"uid": uid}
+
+    @r.post("/events/{uid}/edit")
+    async def event_edit(uid: str, body: EventEdit):
+        fields: dict = body.model_dump(exclude_none=True)
+        for k in ("start", "end"):
+            if k in fields:
+                fields[k] = _parse_when(fields[k])
+        try:
+            await daemon.update_event(uid, **fields)
+        except LookupError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(502, f"Nextcloud event update failed: {exc}") from exc
+        return {"ok": True}
+
+    @r.delete("/events/{uid}")
+    async def event_delete(uid: str):
+        try:
+            await daemon.delete_event(uid)
+        except LookupError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(502, f"Nextcloud event delete failed: {exc}") from exc
+        return {"ok": True}
 
     @r.get("/status")
     async def status():

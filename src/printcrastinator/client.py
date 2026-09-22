@@ -74,6 +74,9 @@ def _event_from_dict(x: dict[str, Any]) -> CalendarEvent:
         calendar_id=x["calendar_id"],
         calendar_name=x["calendar_name"],
         location=x.get("location", ""),
+        attendees=tuple(x.get("attendees") or ()),
+        organizer=x.get("organizer", ""),
+        description=x.get("description", ""),
     )
 
 
@@ -105,6 +108,9 @@ def agenda_from_dict(d: dict[str, Any]) -> DailyAgenda:
             calendar_id=x["calendar_id"],
             calendar_name=x["calendar_name"],
             location=x.get("location", ""),
+            attendees=tuple(x.get("attendees") or ()),
+            organizer=x.get("organizer", ""),
+            description=x.get("description", ""),
         )
 
     return DailyAgenda(

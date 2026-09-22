@@ -130,6 +130,15 @@ def _status_marker(t: TaskItem, day: date, lang: str) -> str:
     return t.due.strftime("%d.%m")
 
 
+def _event_meta(e: CalendarEvent, lang: str) -> str:
+    parts = []
+    if e.attendees:
+        parts.append(i18n.label(lang, "with") + " " + ", ".join(e.attendees))
+    if e.location:
+        parts.append("@ " + e.location)
+    return " · ".join(parts)
+
+
 def _minutes(dt: datetime) -> int:
     local = dt.astimezone()
     return local.hour * 60 + local.minute
@@ -144,7 +153,7 @@ def _events(r: Receipt, agenda: DailyAgenda, lang: str) -> None:
     all_day = [e for e in agenda.events if e.all_day]
     timed = [e for e in agenda.events if not e.all_day]
     for ev in all_day:
-        r.add(EventLine(i18n.label(lang, "all_day"), ev.title))
+        r.add(EventLine(i18n.label(lang, "all_day"), ev.title, meta=_event_meta(ev, lang)))
     if timed:
         day = agenda.day
         items = []
@@ -154,7 +163,7 @@ def _events(r: Receipt, agenda: DailyAgenda, lang: str) -> None:
             e_min = _minutes(e.end) if end_d == day else (24 * 60 if end_d > day else s_min)
             if e_min <= s_min:
                 e_min = min(24 * 60, s_min + 30)
-            items.append(TimelineEvent(e.title, s_min, e_min))
+            items.append(TimelineEvent(e.title, s_min, e_min, _event_meta(e, lang)))
         if all_day:
             r.add(Spacer(6))
         r.add(Timeline(tuple(items)))
@@ -264,7 +273,7 @@ def _timeline_events(events: list[CalendarEvent], day: date) -> list[TimelineEve
         e_min = _minutes(e.end) if end_d == day else (24 * 60 if end_d > day else s_min)
         if e_min <= s_min:
             e_min = min(24 * 60, s_min + 30)
-        out.append(TimelineEvent(e.title, s_min, e_min))
+        out.append(TimelineEvent(e.title, s_min, e_min, _event_meta(e, "en")))
     return out
 
 
@@ -383,6 +392,8 @@ def sample_agenda(day: date | None = None) -> DailyAgenda:
             False,
             "w",
             "Work",
+            location="Room 3",
+            attendees=("Anna", "Bob"),
         ),
         CalendarEvent(
             "e3",

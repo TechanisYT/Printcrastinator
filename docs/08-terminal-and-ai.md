@@ -28,7 +28,7 @@ Config section `ai`: `enabled`, `url` (default `http://localhost:11434`), `model
   (with uids), the available lists, the writable calendars and each Deck board's labels and
   users as system context. Tools: `complete_task`, `reopen_task`, `edit_task`, `create_task`
   (title, notes, due, start, priority, tags/labels, location, assignees, stack), `create_event`
-  (in a chosen calendar, all-day or timed), `get_settings`, `set_setting`, `print_receipt`
+  / `edit_event` / `delete_event` (calendar, times, description, location, attendees), `get_settings`, `set_setting`, `print_receipt`
   (any day), `print_calendar` (events only, one day or a rotated multi-day table),
   `print_tasks` / `preview_tasks` (filtered custom receipts: list or stack ids, due
   range, overdue only, tags, text), `printer_action`. The system prompt carries guidelines for
@@ -54,7 +54,7 @@ daemon's HTTP API:
 | `complete_task(uid)` / `reopen_task(uid)` | done / undone |
 | `edit_task(uid, …)` | title, due, start, notes, priority, tags, location, assignees, stack |
 | `create_task(list_id, title, …)` | list id or `board/stack`, same fields |
-| `list_calendars` / `create_event(calendar_id, title, start, end?, …)` | events in a Nextcloud calendar |
+| `list_calendars` / `create_event(…)` / `edit_event(uid, …)` / `delete_event(uid)` | events incl. attendees |
 | `get_settings` / `set_setting(section, key, value)` | read / change configuration |
 | `printer_action(action)` | test_print, density_sweep, feed, test_notification, full_cycle, poll |
 | `print_today(force?, layout?)` / `print_day(day, layout?)` | print the daily receipt for today / any day |

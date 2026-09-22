@@ -36,6 +36,27 @@ def _to_local_dt(value: Any, *, all_day_end: bool = False) -> tuple[datetime, bo
     return datetime.combine(dt, time.min, _local_tz()), True
 
 
+def attendee_names(comp: Any) -> tuple[str, ...]:
+    """CN or the mailto address of every ATTENDEE."""
+    raw = comp.get("ATTENDEE")
+    if raw is None:
+        return ()
+    out = []
+    for a in raw if isinstance(raw, list) else [raw]:
+        cn = getattr(a, "params", {}).get("CN") if hasattr(a, "params") else None
+        addr = str(a).replace("mailto:", "").replace("MAILTO:", "")
+        out.append(str(cn) if cn else addr)
+    return tuple(x for x in out if x)
+
+
+def organizer_name(comp: Any) -> str:
+    org = comp.get("ORGANIZER")
+    if org is None:
+        return ""
+    cn = getattr(org, "params", {}).get("CN") if hasattr(org, "params") else None
+    return str(cn) if cn else str(org).replace("mailto:", "").replace("MAILTO:", "")
+
+
 def parse_vtodo(ics: str, list_id: str, list_name: str) -> TaskItem | None:
     """First pending VTODO in the ICS, or None if completed/cancelled."""
     cal = ICal.from_ical(ics)
@@ -103,6 +124,9 @@ def parse_vevent_components(ics: str, cal_id: str, cal_name: str, day: date) -> 
                 calendar_id=cal_id,
                 calendar_name=cal_name,
                 location=str(comp.get("LOCATION", "") or ""),
+                attendees=attendee_names(comp),
+                organizer=organizer_name(comp),
+                description=str(comp.get("DESCRIPTION", "") or "").strip(),
             )
         )
     return out

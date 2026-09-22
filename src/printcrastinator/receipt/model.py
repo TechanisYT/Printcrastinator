@@ -44,6 +44,7 @@ class SubHeader:
 class EventLine:
     time: str  # "09:00–10:30" or "all day"
     title: str
+    meta: str = ""  # small line under the title (attendees, location)
 
 
 @dataclass(frozen=True)
@@ -63,6 +64,7 @@ class TimelineEvent:
     title: str
     start_min: int  # minutes from midnight
     end_min: int
+    sub: str = ""  # e.g. attendees or location, drawn smaller under the title when it fits
 
 
 @dataclass(frozen=True)

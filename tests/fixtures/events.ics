@@ -9,6 +9,10 @@ END:VEVENT
 BEGIN:VEVENT
 UID:ev-timed
 SUMMARY:Team sync
+ORGANIZER;CN=Me:mailto:me@example.com
+ATTENDEE;RSVP=TRUE;CN=Anna Example:mailto:anna@example.com
+ATTENDEE;RSVP=TRUE:mailto:bob@example.com
+LOCATION:Room 3
 DTSTART;TZID=Europe/Berlin:20260922T090000
 DTEND;TZID=Europe/Berlin:20260922T103000
 END:VEVENT

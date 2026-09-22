@@ -53,6 +53,7 @@ class CalDavClient:
         self.id_prefix = id_prefix
         self.name_override = name_override
         self._client: caldav.DAVClient | None = None
+        self._my_address: str | None = None
 
     def _dav(self) -> caldav.DAVClient:
         if self._client is None:
@@ -244,6 +245,7 @@ class CalDavClient:
         *,
         description: str = "",
         location: str = "",
+        attendees: list[str] | None = None,
     ) -> str:
         cal = self._collection(calendar_id, vtodo=False)
         tz = datetime.now().astimezone().tzinfo
@@ -261,4 +263,99 @@ class CalDavClient:
         if location:
             kwargs["location"] = location
         ev = cal.save_event(**kwargs)
+        if attendees:
+            self._set_attendees(ev.icalendar_component, attendees)
+            ev.save()
         return str(ev.icalendar_component.get("UID", ""))
+
+    # ---- attendees -----------------------------------------------------------------------
+
+    def my_address(self) -> str:
+        """The user's own calendar address (mailto:…) for the ORGANIZER property."""
+        if self._my_address is None:
+            self._my_address = ""
+            try:
+                from caldav.elements import cdav
+
+                addrs = self._dav().principal().get_property(cdav.CalendarUserAddressSet())
+                for a in addrs or []:
+                    if str(a).lower().startswith("mailto:"):
+                        self._my_address = str(a)
+                        break
+            except Exception as exc:
+                log.debug("calendar-user-address-set unavailable: %s", exc)
+        return self._my_address
+
+    @staticmethod
+    def parse_attendee(text: str) -> tuple[str, str]:
+        """'Name <mail>' | 'mail' | 'Name' -> (name, mail). Name-only has no mail."""
+        text = text.strip()
+        if "<" in text and text.endswith(">"):
+            name, mail = text[:-1].split("<", 1)
+            return name.strip(), mail.strip()
+        if "@" in text:
+            return "", text
+        return text, ""
+
+    def _set_attendees(self, comp: Any, attendees: list[str]) -> None:
+        """Replace ATTENDEEs. Every attendee needs a mail address (a cal-address URI);
+        the ORGANIZER is set to the user's own address so Nextcloud sends invitations."""
+        from icalendar import vCalAddress, vText
+
+        comp.pop("ATTENDEE", None)
+        missing = [a for a in attendees if not self.parse_attendee(a)[1]]
+        if missing:
+            raise ValueError(
+                f"attendees need an e-mail address (name <mail>): {', '.join(missing)}"
+            )
+        for a in attendees:
+            name, mail = self.parse_attendee(a)
+            addr = vCalAddress(f"mailto:{mail}")
+            if name:
+                addr.params["CN"] = vText(name)
+            addr.params["RSVP"] = vText("TRUE")
+            addr.params["CUTYPE"] = vText("INDIVIDUAL")
+            addr.params["ROLE"] = vText("REQ-PARTICIPANT")
+            addr.params["PARTSTAT"] = vText("NEEDS-ACTION")
+            comp.add("ATTENDEE", addr, encode=0)
+        if attendees and comp.get("ORGANIZER") is None and self.my_address():
+            org = vCalAddress(self.my_address())
+            comp.add("ORGANIZER", org, encode=0)
+
+    def _find_event(self, uid: str, calendar_id: str = ""):
+        uid = uid.split("@", 1)[0]  # strip a recurrence suffix
+        cols = [
+            c for c in self.collections() if c.vevent and (not calendar_id or c.id == calendar_id)
+        ]
+        for col in cols:
+            try:
+                return self._calendar(col).event_by_uid(uid)
+            except Exception:
+                continue
+        raise LookupError(f"event {uid} not found")
+
+    def update_event(self, uid: str, calendar_id: str = "", **fields: Any) -> None:
+        """fields: title, start, end, description, location, attendees (list of 'Name <mail>').
+        An attendees list replaces the whole set; [] removes everyone."""
+        ev = self._find_event(uid, calendar_id)
+        comp = ev.icalendar_component
+        tz = datetime.now().astimezone().tzinfo
+        if fields.get("title") is not None:
+            comp["SUMMARY"] = fields["title"]
+        if fields.get("description") is not None:
+            comp["DESCRIPTION"] = fields["description"]
+        if fields.get("location") is not None:
+            comp["LOCATION"] = fields["location"]
+        for key, prop in (("start", "DTSTART"), ("end", "DTEND")):
+            v = fields.get(key)
+            if v is not None:
+                if isinstance(v, datetime) and v.tzinfo is None:
+                    v = v.replace(tzinfo=tz)
+                comp.pop(prop, None)
+                comp.add(prop, v)
+        if fields.get("attendees") is not None:
+            self._set_attendees(comp, list(fields["attendees"]))
+        ev.save()
+
+    def delete_event(self, uid: str, calendar_id: str = "") -> None:
+        self._find_event(uid, calendar_id).delete()

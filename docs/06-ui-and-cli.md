@@ -33,7 +33,7 @@ by default, toggle in Settings.
 | `GET /api/tasks` | open tasks with uids, suppression keys, lists/stacks |
 | `POST /api/tasks/{uid}/done?done=` | complete / reopen |
 | `POST /api/tasks/{uid}/edit` · `POST /api/tasks` | edit / create with all fields |
-| `GET /api/calendars` · `POST /api/events` | writable calendars / create event |
+| `GET /api/calendars` · `POST /api/events` · `POST /api/events/{uid}/edit` · `DELETE /api/events/{uid}` | calendars / create, edit (incl. attendees), delete events |
 | `GET /api/settings` · `POST /api/settings` | read (password masked) / change one setting |
 | `GET /api/ai/status` · `POST /api/ai/summary` · `POST /api/ai/chat` | AI |
 

@@ -173,12 +173,16 @@ def _event(c: _Canvas, b: EventLine) -> None:
     lh = _line_height("body")
     time_w = text_width("00:00–00:00", "small") + 10
     lines = wrap(b.title, "body", WIDTH - MARGIN - (MARGIN + time_w))
-    c.ensure(lh * len(lines) + ITEM_GAP)
+    meta_lines = wrap(b.meta, "small", WIDTH - MARGIN - (MARGIN + time_w)) if b.meta else []
+    c.ensure(lh * len(lines) + _line_height("small") * len(meta_lines) + ITEM_GAP)
     ty = c.y + (lh - _line_height("small")) // 2
     c.draw.text((MARGIN, ty), b.time, font=font("small"), fill=0)
     for line in lines:
         c.draw.text((MARGIN + time_w, c.y), line, font=font("body"), fill=0)
         c.y += lh
+    for line in meta_lines:
+        c.draw.text((MARGIN + time_w, c.y), line, font=font("small"), fill=0)
+        c.y += _line_height("small")
     c.y += ITEM_GAP
 
 
@@ -311,9 +315,19 @@ def _timeline(c: _Canvas, b: Timeline) -> None:
         for line in lines:
             c.draw.text((x0 + 9, ty), line, font=font("small"), fill=0)
             ty += lh_small
+        if e.sub:
+            lh_tiny = _line_height("tiny")
+            room = (y1 - ty - 2) // lh_tiny
+            sub_lines = wrap(e.sub, "tiny", x1 - x0 - 14)
+            if len(sub_lines) > room > 0:
+                sub_lines = sub_lines[:room]
+                sub_lines[-1] = sub_lines[-1].rstrip(", ") + "…"
+            for line in sub_lines[: max(0, room)]:
+                c.draw.text((x0 + 9, ty), line, font=font("tiny"), fill=0)
+                ty += lh_tiny
     c.y = top + height + lh_small // 2 + 8
     for e in overflow:
-        _event(c, EventLine(f"{_hhmm(e.start_min)}–{_hhmm(e.end_min)}", e.title))
+        _event(c, EventLine(f"{_hhmm(e.start_min)}–{_hhmm(e.end_min)}", e.title, meta=e.sub))
 
 
 def _tear(c: _Canvas) -> None:
@@ -451,6 +465,10 @@ def multi_day_calendar(days: list[tuple[str, list[TimelineEvent], list[str]]]) -
             for line in lines:
                 d.text((ex0 + 8, ty), line, font=font("tiny"), fill=0)
                 ty += lh_tiny
+            if e.sub and len(lines) < max_lines:
+                for line in wrap(e.sub, "tiny", ex1 - ex0 - 12)[: max_lines - len(lines)]:
+                    d.text((ex0 + 8, ty), line, font=font("tiny"), fill=0)
+                    ty += lh_tiny
     d.line(
         (
             axis_x + len(days) * (day_w + gap) - gap,

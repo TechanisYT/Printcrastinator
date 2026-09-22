@@ -55,11 +55,15 @@ class CalendarEvent:
     calendar_id: str
     calendar_name: str
     location: str = ""
+    attendees: tuple[str, ...] = ()  # display names (or emails) of ATTENDEEs
+    organizer: str = ""
+    description: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["start"] = self.start.isoformat()
         d["end"] = self.end.isoformat()
+        d["attendees"] = list(self.attendees)
         return d
 
 

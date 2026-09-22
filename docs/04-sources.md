@@ -39,6 +39,10 @@ config file, not against another process running as the same user.
 
 ### Write-back
 
+Events: `save_event`, `update_event` (SUMMARY, DTSTART/DTEND, DESCRIPTION, LOCATION,
+ATTENDEE list as `Name <mail>`; ORGANIZER is set from the principal's
+`calendar-user-address-set` so Nextcloud sends invitations), `delete_event`. Attendees are
+parsed back as CN or mail address and printed under the event ("with Anna, Bob · @ Room 3").
 Tasks: `complete()`/`uncomplete()`, `save_todo`, and field updates on the VTODO (SUMMARY,
 DESCRIPTION, DUE, DTSTART, PRIORITY, CATEGORIES, LOCATION). Deck: card PUT (must include
 `owner`), `assignLabel`/`removeLabel`, `assignUser`/`unassignUser`; moving a card between

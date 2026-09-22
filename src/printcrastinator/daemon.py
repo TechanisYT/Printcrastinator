@@ -712,6 +712,7 @@ class Daemon:
         end: datetime | date | None = None,
         description: str = "",
         location: str = "",
+        attendees: list[str] | None = None,
     ) -> str:
         uid = await asyncio.to_thread(
             CalDavClient(self.cfg.nextcloud, self.db).create_event,
@@ -721,10 +722,28 @@ class Daemon:
             end,
             description=description,
             location=location,
+            attendees=attendees,
         )
         self.db.log("event", True, f"created: {title}")
         await self._refresh_after_write()
         return uid
+
+    async def update_event(self, uid: str, **fields: Any) -> None:
+        cal_id = ""
+        for e in self.state.events:
+            if e.uid == uid or e.uid.split("@", 1)[0] == uid.split("@", 1)[0]:
+                cal_id = e.calendar_id
+                break
+        await asyncio.to_thread(
+            CalDavClient(self.cfg.nextcloud, self.db).update_event, uid, cal_id, **fields
+        )
+        self.db.log("event", True, f"edited: {fields.get('title') or uid[:8]}")
+        await self._refresh_after_write()
+
+    async def delete_event(self, uid: str) -> None:
+        await asyncio.to_thread(CalDavClient(self.cfg.nextcloud, self.db).delete_event, uid)
+        self.db.log("event", True, f"deleted: {uid[:8]}")
+        await self._refresh_after_write()
 
     async def _refresh_after_write(self) -> None:
         """Re-fetch right away so anything printed in the same breath sees the change."""

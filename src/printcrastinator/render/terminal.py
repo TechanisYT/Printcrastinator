@@ -48,10 +48,14 @@ def render(receipt: Receipt, console: Console | None = None) -> None:
                         f"{e.end_min // 60:02d}:{e.end_min % 60:02d}"
                     )
                     console.print(RText.assemble((f"{when:<12}", "cyan"), e.title))
+                    if e.sub:
+                        console.print(RText(f"{'':<12}{e.sub}", style="dim"))
             case SubHeader(text=t):
                 console.print(RText(f"  {t}", style="dim bold"))
-            case EventLine(time=t, title=title):
+            case EventLine(time=t, title=title, meta=m):
                 console.print(RText.assemble((f"{t:<12}", "cyan"), title))
+                if m:
+                    console.print(RText(f"{'':<12}{m}", style="dim"))
             case CheckItem(title=t, right=r, meta=m):
                 line = RText.assemble(("[ ] ", "bold yellow"), t)
                 if r:

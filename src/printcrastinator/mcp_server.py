@@ -103,10 +103,31 @@ def build_server():
         end: str | None = None,
         description: str = "",
         location: str = "",
+        attendees: list[str] | None = None,
     ) -> dict:
-        """Create an event. start/end: YYYY-MM-DD (all-day) or YYYY-MM-DDTHH:MM (timed)."""
+        """Create an event. start/end: YYYY-MM-DD (all-day) or YYYY-MM-DDTHH:MM (timed).
+        attendees: 'Name <mail>' or 'mail'."""
         body = {k: v for k, v in locals().items() if v is not None}
         return _api("POST", "/api/events", json=body)
+
+    @srv.tool()
+    def edit_event(
+        uid: str,
+        title: str | None = None,
+        start: str | None = None,
+        end: str | None = None,
+        description: str | None = None,
+        location: str | None = None,
+        attendees: list[str] | None = None,
+    ) -> dict:
+        """Edit an event; attendees replaces the whole list ([] removes everyone)."""
+        body = {k: v for k, v in locals().items() if k != "uid" and v is not None}
+        return _api("POST", f"/api/events/{uid}/edit", json=body)
+
+    @srv.tool()
+    def delete_event(uid: str) -> dict:
+        """Delete an event by uid (see get_agenda for uids)."""
+        return _api("DELETE", f"/api/events/{uid}")
 
     @srv.tool()
     def print_today(force: bool = False, layout: str = "") -> dict:

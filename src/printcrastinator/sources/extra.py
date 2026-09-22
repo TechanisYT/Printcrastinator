@@ -14,6 +14,7 @@ from ..config import ExtraCalendar, NextcloudConfig
 from ..db import Database
 from ..models import CalendarEvent
 from .caldav_client import CalDavClient, Collection
+from .parse import attendee_names, organizer_name
 
 log = logging.getLogger(__name__)
 
@@ -94,6 +95,9 @@ def ics_events_for_day(text: str, day: date, cal_id: str, cal_name: str) -> list
                 calendar_id=cal_id,
                 calendar_name=cal_name,
                 location=str(comp.get("LOCATION", "") or ""),
+                attendees=attendee_names(comp),
+                organizer=organizer_name(comp),
+                description=str(comp.get("DESCRIPTION", "") or "").strip(),
             )
         )
     return out

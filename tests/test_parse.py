@@ -34,6 +34,8 @@ def test_events_for_day():
     assert allday.all_day is True
     timed = next(e for e in evs if e.title == "Team sync")
     assert timed.all_day is False and timed.calendar_name == "Work"
+    assert timed.attendees == ("Anna Example", "bob@example.com")
+    assert timed.organizer == "Me" and timed.location == "Room 3"
 
 
 def test_deck_cards_skip_archived_and_done():

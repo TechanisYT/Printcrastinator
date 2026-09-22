@@ -29,6 +29,7 @@ LABELS: dict[str, dict[str, str]] = {
         "due_on": "DUE {d}",
         "pinned": "DECKS & LISTS",
         "more_events": "also:",
+        "with": "with",
     },
     "de": {
         "today": "HEUTE",
@@ -54,6 +55,7 @@ LABELS: dict[str, dict[str, str]] = {
         "due_on": "FÄLLIG {d}",
         "pinned": "DECKS & LISTEN",
         "more_events": "außerdem:",
+        "with": "mit",
     },
 }
 

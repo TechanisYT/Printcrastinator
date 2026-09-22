@@ -234,8 +234,49 @@ TOOLS: list[dict[str, Any]] = [
                     "end": {"type": "string"},
                     "description": {"type": "string"},
                     "location": {"type": "string"},
+                    "attendees": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "'Name <mail@x>' or 'mail@x'; each needs a mail address",
+                    },
                 },
                 "required": ["calendar_id", "title", "start"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "edit_event",
+            "description": (
+                "Change an event: title, start/end (YYYY-MM-DD or YYYY-MM-DDTHH:MM), description, "
+                "location, attendees (full replacement list of 'Name <mail>'; [] removes all). "
+                "Use the event uid from the calendar list."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "uid": {"type": "string"},
+                    "title": {"type": "string"},
+                    "start": {"type": "string"},
+                    "end": {"type": "string"},
+                    "description": {"type": "string"},
+                    "location": {"type": "string"},
+                    "attendees": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["uid"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_event",
+            "description": "Delete an event by uid.",
+            "parameters": {
+                "type": "object",
+                "properties": {"uid": {"type": "string"}},
+                "required": ["uid"],
             },
         },
     },
@@ -251,10 +292,11 @@ def agenda_context(
 ) -> str:
     lines = [f"Today is {today.isoformat()} ({today.strftime('%A')})."]
     if agenda.events:
-        lines.append("Calendar today:")
+        lines.append("Calendar today (uid | time | title | location | attendees):")
         for e in agenda.events:
             when = "all day" if e.all_day else f"{e.start:%H:%M}-{e.end:%H:%M}"
-            lines.append(f"- {when}: {e.title}")
+            who = ", ".join(e.attendees) if e.attendees else "-"
+            lines.append(f"- {e.uid} | {when} | {e.title} | {e.location or '-'} | {who}")
     lines.append("Open tasks (uid | title | list | due | notes):")
     for t in agenda.all_tasks:
         due = t.due.isoformat() if t.due else "-"
@@ -322,6 +364,9 @@ GUIDELINES = (
     "next week)': print_calendar ONLY; never print_receipt or print_tasks for that. 'next N "
     "days' = today through today+N-1; 'next week' = tomorrow through tomorrow+6.\n"
     "- After create_event or task changes the data is already refreshed; print right away.\n"
+    "- Attendees need an e-mail address ('Name <mail>'). If the user only gives a name and no "
+    "address is known, ask for the address instead of guessing one.\n"
+    "- To change attendance, pass the complete new attendee list to edit_event.\n"
     "- 'print (the) tasks for/of/from <name>': print_tasks with list_ids=['<name>'] and NO other "
     "filter. Names are accepted: a task list name, a Deck board name (all its stacks) or "
     "'Board · Stack'. If a task list and a board share the name, both are included.\n"
@@ -450,8 +495,23 @@ class Assistant:
                     when(args["end"]) if args.get("end") else None,
                     args.get("description", ""),
                     args.get("location", ""),
+                    args.get("attendees") or None,
                 )
                 return f"event created: {args['title']} ({args['start']})"
+            if name == "edit_event":
+
+                def when2(v: str):
+                    return date.fromisoformat(v) if len(v) == 10 else datetime.fromisoformat(v)
+
+                f = {k: v for k, v in args.items() if k != "uid" and v is not None}
+                for k in ("start", "end"):
+                    if k in f:
+                        f[k] = when2(f[k])
+                await d.update_event(args["uid"], **f)
+                return f"event edited: {args.get('title') or args['uid'][:8]}"
+            if name == "delete_event":
+                await d.delete_event(args["uid"])
+                return f"event deleted: {args['uid'][:8]}"
             if name == "get_settings":
                 return json.dumps(d.settings_dict())
             if name == "set_setting":
