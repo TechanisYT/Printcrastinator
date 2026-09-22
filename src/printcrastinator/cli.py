@@ -32,6 +32,10 @@ def _cmd_preview(args: argparse.Namespace) -> int:
     out = Path(args.path)
     img.save(out)
     print(f"wrote {out} ({img.width}x{img.height})")
+    if args.open:
+        import subprocess
+
+        subprocess.Popen(["xdg-open", str(out)])
     return 0
 
 
@@ -120,6 +124,7 @@ def build_parser() -> argparse.ArgumentParser:
     pv.add_argument("--kind", choices=["sample", "empty", "slip", "live"], default="sample")
     pv.add_argument("--lang", choices=["en", "de"])
     pv.add_argument("--day", help="ISO date for the sample")
+    pv.add_argument("--open", action="store_true", help="open the PNG with xdg-open")
     pv.set_defaults(func=_cmd_preview)
     return p
 
@@ -127,10 +132,18 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO,
+        level=logging.DEBUG if args.verbose else logging.WARNING,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    return args.func(args)
+    if args.cmd == "serve":
+        logging.getLogger().setLevel(logging.DEBUG if args.verbose else logging.INFO)
+    try:
+        return args.func(args)
+    except Exception as exc:  # noqa: BLE001
+        if args.verbose:
+            raise
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

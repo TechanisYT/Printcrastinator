@@ -4,12 +4,12 @@
 
 Printer USB ID `0456:0808`, kernel `usblp` creates `/dev/usb/lp0` (root:lp 0660).
 
-Preferred: udev rule `packaging/99-printcrastinator-printer.rules`
+Preferred: udev rule `packaging/60-printcrastinator-printer.rules`
 
 ```
 SUBSYSTEM=="usbmisc", KERNEL=="lp*", ATTRS{idVendor}=="0456", ATTRS{idProduct}=="0808", TAG+="uaccess"
 ```
-Install with `sudo cp packaging/99-printcrastinator-printer.rules /etc/udev/rules.d/ && sudo udevadm control --reload && sudo udevadm trigger`.
+Install with `sudo cp packaging/60-printcrastinator-printer.rules /etc/udev/rules.d/ && sudo udevadm control --reload && sudo udevadm trigger`.
 `uaccess` grants the active seat's user an ACL on the node.
 
 Fallback: `sudo usermod -aG lp $USER` (needs re-login).

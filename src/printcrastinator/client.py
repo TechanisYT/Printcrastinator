@@ -18,17 +18,24 @@ class DaemonUnavailable(RuntimeError):
     pass
 
 
+class DaemonError(RuntimeError):
+    pass
+
+
 def _call(cfg: Config, method: str, path: str, timeout: float = 120, **params: Any) -> Any:
     try:
         r = httpx.request(method, cfg.api_base + path, params=params, timeout=timeout)
-        r.raise_for_status()
-        return (
-            r.json()
-            if r.headers.get("content-type", "").startswith("application/json")
-            else r.content
-        )
     except httpx.ConnectError as exc:
         raise DaemonUnavailable(str(exc)) from exc
+    if r.status_code >= 400:
+        try:
+            detail = r.json().get("detail", r.text)
+        except ValueError:
+            detail = r.text
+        raise DaemonError(f"daemon answered {r.status_code}: {detail}")
+    if r.headers.get("content-type", "").startswith("application/json"):
+        return r.json()
+    return r.content
 
 
 def daemon_reachable(cfg: Config) -> bool:

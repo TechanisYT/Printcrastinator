@@ -33,7 +33,7 @@ fi
 (cd "$TARGET" && uv sync --frozen)
 
 echo "Installing udev rule (sudo)"
-sudo install -m 644 "$HERE/packaging/99-printcrastinator-printer.rules" /etc/udev/rules.d/
+sudo install -m 644 "$HERE/packaging/60-printcrastinator-printer.rules" /etc/udev/rules.d/
 sudo udevadm control --reload
 sudo udevadm trigger --subsystem-match=usbmisc
 

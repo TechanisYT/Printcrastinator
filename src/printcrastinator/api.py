@@ -5,9 +5,10 @@ from __future__ import annotations
 from datetime import datetime
 from io import BytesIO
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, HTTPException, Response
 
 from .daemon import Daemon
+from .printer.escpos_out import PrinterError
 from .receipt import layout
 from .render import image as render_image
 
@@ -45,12 +46,18 @@ def make_router(daemon: Daemon) -> APIRouter:
 
     @r.post("/print/test")
     async def print_test():
-        await daemon.print_test()
+        try:
+            await daemon.print_test()
+        except PrinterError as exc:
+            raise HTTPException(503, str(exc)) from exc
         return {"ok": True}
 
     @r.post("/printer/feed")
     async def feed(mm: int | None = None):
-        await daemon.feed(mm)
+        try:
+            await daemon.feed(mm)
+        except PrinterError as exc:
+            raise HTTPException(503, str(exc)) from exc
         return {"ok": True}
 
     @r.post("/notify")
