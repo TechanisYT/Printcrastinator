@@ -68,3 +68,68 @@ class DeckClient:
             r = await c.get("/boards")
             r.raise_for_status()
             return f"OK: {len(r.json())} boards"
+
+    # ---- write-back -------------------------------------------------------------------------
+
+    async def _card(self, c: httpx.AsyncClient, board_id: int, stack_id: int, card_id: int) -> dict:
+        r = await c.get(f"/boards/{board_id}/stacks/{stack_id}/cards/{card_id}")
+        r.raise_for_status()
+        return r.json()
+
+    async def _put_card(self, board_id: int, stack_id: int, card_id: int, **changes: Any) -> None:
+        async with self._client() as c:
+            card = await self._card(c, board_id, stack_id, card_id)
+            owner = card.get("owner")
+            body = {
+                "owner": owner.get("uid") if isinstance(owner, dict) else owner,
+                "title": card.get("title", ""),
+                "type": card.get("type", "plain"),
+                "order": card.get("order", 0),
+                "description": card.get("description") or "",
+                "duedate": card.get("duedate"),
+                "done": card.get("done"),
+            }
+            body.update(changes)
+            r = await c.put(f"/boards/{board_id}/stacks/{stack_id}/cards/{card_id}", json=body)
+            r.raise_for_status()
+
+    async def complete_card(self, board_id: int, stack_id: int, card_id: int) -> None:
+        from datetime import UTC, datetime
+
+        await self._put_card(
+            board_id, stack_id, card_id, done=datetime.now(UTC).isoformat(timespec="seconds")
+        )
+
+    async def uncomplete_card(self, board_id: int, stack_id: int, card_id: int) -> None:
+        await self._put_card(board_id, stack_id, card_id, done=None)
+
+    async def update_card(
+        self,
+        board_id: int,
+        stack_id: int,
+        card_id: int,
+        title: str | None = None,
+        due: str | None = "keep",
+        notes: str | None = None,
+    ) -> None:
+        changes: dict[str, Any] = {}
+        if title is not None:
+            changes["title"] = title
+        if notes is not None:
+            changes["description"] = notes
+        if due != "keep":
+            changes["duedate"] = due
+        await self._put_card(board_id, stack_id, card_id, **changes)
+
+    async def create_card(
+        self, board_id: int, stack_id: int, title: str, due: str | None = None, notes: str = ""
+    ) -> int:
+        async with self._client() as c:
+            body: dict[str, Any] = {"title": title, "type": "plain", "order": 999}
+            if due:
+                body["duedate"] = due
+            if notes:
+                body["description"] = notes
+            r = await c.post(f"/boards/{board_id}/stacks/{stack_id}/cards", json=body)
+            r.raise_for_status()
+            return int(r.json()["id"])

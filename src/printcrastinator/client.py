@@ -59,6 +59,9 @@ def agenda_from_dict(d: dict[str, Any]) -> DailyAgenda:
             url=x.get("url", ""),
             board_id=x.get("board_id"),
             stack_id=x.get("stack_id"),
+            notes=x.get("notes", ""),
+            tags=tuple(x.get("tags") or ()),
+            card_id=x.get("card_id"),
         )
 
     def event(x: dict[str, Any]) -> CalendarEvent:

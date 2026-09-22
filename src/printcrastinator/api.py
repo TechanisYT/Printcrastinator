@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from io import BytesIO
 
 from fastapi import APIRouter, HTTPException, Response
+from pydantic import BaseModel
 
 from .daemon import Daemon
 from .printer.escpos_out import PrinterError
@@ -13,8 +14,70 @@ from .receipt import layout
 from .render import image as render_image
 
 
+class TaskEdit(BaseModel):
+    title: str | None = None
+    due: str | None = None  # ISO date, "" to clear, omitted to keep
+    notes: str | None = None
+
+
+class TaskCreate(BaseModel):
+    list_id: str
+    title: str
+    due: str | None = None
+    notes: str = ""
+
+
+def _parse_due(v: str | None) -> date | None | str:
+    if v is None:
+        return "keep"
+    if v == "":
+        return None
+    return date.fromisoformat(v)
+
+
 def make_router(daemon: Daemon) -> APIRouter:
     r = APIRouter(prefix="/api")
+
+    @r.get("/tasks")
+    async def tasks():
+        return {
+            "tasks": [t.to_dict() for t in daemon.candidates()],
+            "suppressed": [list(k) for k in daemon.db.suppressed_keys()],
+            "lists": daemon.task_lists(),
+        }
+
+    @r.post("/tasks/{uid}/done")
+    async def task_done(uid: str, done: bool = True):
+        try:
+            t = await daemon.set_task_done(uid, done)
+        except LookupError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(502, f"Nextcloud update failed: {exc}") from exc
+        return t.to_dict()
+
+    @r.post("/tasks/{uid}/edit")
+    async def task_edit(uid: str, body: TaskEdit):
+        try:
+            t = await daemon.update_task(uid, body.title, _parse_due(body.due), body.notes)
+        except LookupError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(502, f"Nextcloud update failed: {exc}") from exc
+        return t.to_dict()
+
+    @r.post("/tasks")
+    async def task_create(body: TaskCreate):
+        try:
+            uid = await daemon.create_task(
+                body.list_id,
+                body.title,
+                date.fromisoformat(body.due) if body.due else None,
+                body.notes,
+            )
+        except Exception as exc:
+            raise HTTPException(502, f"Nextcloud create failed: {exc}") from exc
+        return {"uid": uid}
 
     @r.get("/status")
     async def status():

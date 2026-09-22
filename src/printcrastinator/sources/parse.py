@@ -47,6 +47,11 @@ def parse_vtodo(ics: str, list_id: str, list_name: str) -> TaskItem | None:
         created_dt = getattr(created, "dt", None)
         if isinstance(created_dt, date) and not isinstance(created_dt, datetime):
             created_dt = datetime.combine(created_dt, time.min)
+        cats = comp.get("CATEGORIES")
+        tags: list[str] = []
+        if cats is not None:
+            for c in cats if isinstance(cats, list) else [cats]:
+                tags.extend(str(x) for x in getattr(c, "cats", [c]))
         return TaskItem(
             uid=str(comp.get("UID", "")),
             source="tasks",
@@ -55,6 +60,8 @@ def parse_vtodo(ics: str, list_id: str, list_name: str) -> TaskItem | None:
             list_id=list_id,
             list_name=list_name,
             created=created_dt,
+            notes=str(comp.get("DESCRIPTION", "") or "").strip(),
+            tags=tuple(t.strip() for t in tags if t.strip()),
         )
     return None
 
@@ -140,6 +147,13 @@ def parse_deck_cards(
                     else "",
                     board_id=board_id,
                     stack_id=stack_id,
+                    notes=str(card.get("description") or "").strip(),
+                    tags=tuple(
+                        str(lab.get("title", ""))
+                        for lab in (card.get("labels") or [])
+                        if lab.get("title")
+                    ),
+                    card_id=int(card["id"]),
                 )
             )
     return items

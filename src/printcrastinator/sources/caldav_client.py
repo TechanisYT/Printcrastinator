@@ -141,3 +141,53 @@ class CalDavClient:
     def test_connection(self) -> str:
         cols = self.collections()
         return f"OK: {len(cols)} calendars/lists found"
+
+    # ---- write-back -------------------------------------------------------------------------
+
+    def _find_todo(self, uid: str, list_id: str):
+        for col in self.collections():
+            if col.id == list_id and col.vtodo:
+                return self._calendar(col).todo_by_uid(uid)
+        raise LookupError(f"task list {list_id} not found")
+
+    def complete_task(self, uid: str, list_id: str) -> None:
+        todo = self._find_todo(uid, list_id)
+        todo.complete()
+
+    def uncomplete_task(self, uid: str, list_id: str) -> None:
+        todo = self._find_todo(uid, list_id)
+        todo.uncomplete()
+
+    def create_task(
+        self, list_id: str, title: str, due: date | None = None, notes: str = ""
+    ) -> str:
+        for col in self.collections():
+            if col.id == list_id and col.vtodo:
+                kwargs: dict[str, Any] = {"summary": title}
+                if due:
+                    kwargs["due"] = due
+                if notes:
+                    kwargs["description"] = notes
+                todo = self._calendar(col).save_todo(**kwargs)
+                return str(todo.icalendar_component.get("UID", ""))
+        raise LookupError(f"task list {list_id} not found")
+
+    def update_task(
+        self,
+        uid: str,
+        list_id: str,
+        title: str | None = None,
+        due: date | None | str = "keep",
+        notes: str | None = None,
+    ) -> None:
+        todo = self._find_todo(uid, list_id)
+        comp = todo.icalendar_component
+        if title is not None:
+            comp["SUMMARY"] = title
+        if notes is not None:
+            comp["DESCRIPTION"] = notes
+        if due != "keep":
+            comp.pop("DUE", None)
+            if due is not None:
+                comp.add("DUE", due)
+        todo.save()

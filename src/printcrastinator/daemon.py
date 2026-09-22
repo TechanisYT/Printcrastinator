@@ -399,3 +399,93 @@ class Daemon:
         bus.add_message_handler(handler)
         log.info("listening for login1 resume/unlock signals")
         await bus.wait_for_disconnect()
+
+    # ---- task write-back (used by TUI, web UI and the AI assistant) -----------------------------
+
+    def find_task(self, uid: str) -> TaskItem | None:
+        for t in self.state.tasks + self.state.cards:
+            if t.uid == uid:
+                return t
+        return None
+
+    async def set_task_done(self, uid: str, done: bool) -> TaskItem:
+        t = self.find_task(uid)
+        if t is None:
+            raise LookupError(f"unknown task {uid}")
+        nc = self.cfg.nextcloud
+        if t.source == "deck":
+            deck = DeckClient(nc)
+            assert t.board_id is not None and t.stack_id is not None and t.card_id is not None
+            if done:
+                await deck.complete_card(t.board_id, t.stack_id, t.card_id)
+            else:
+                await deck.uncomplete_card(t.board_id, t.stack_id, t.card_id)
+        else:
+            cal = CalDavClient(nc, self.db)
+            fn = cal.complete_task if done else cal.uncomplete_task
+            await asyncio.to_thread(fn, t.uid, t.list_id)
+        self.db.log("task", True, f"{'done' if done else 'reopened'}: {t.title}")
+        self._wake.set()
+        return t
+
+    async def update_task(
+        self,
+        uid: str,
+        title: str | None = None,
+        due: date | None | str = "keep",
+        notes: str | None = None,
+    ) -> TaskItem:
+        t = self.find_task(uid)
+        if t is None:
+            raise LookupError(f"unknown task {uid}")
+        nc = self.cfg.nextcloud
+        if t.source == "deck":
+            assert t.board_id is not None and t.stack_id is not None and t.card_id is not None
+            due_s: str | None = "keep"
+            if due != "keep":
+                due_s = f"{due.isoformat()}T12:00:00+00:00" if isinstance(due, date) else None
+            await DeckClient(nc).update_card(t.board_id, t.stack_id, t.card_id, title, due_s, notes)
+        else:
+            await asyncio.to_thread(
+                CalDavClient(nc, self.db).update_task, t.uid, t.list_id, title, due, notes
+            )
+        self.db.log("task", True, f"edited: {title or t.title}")
+        self._wake.set()
+        return t
+
+    async def create_task(
+        self, list_id: str, title: str, due: date | None = None, notes: str = ""
+    ) -> str:
+        """list_id is a CalDAV list id or 'board/stack' for Deck."""
+        nc = self.cfg.nextcloud
+        if "/" in list_id:
+            b, st = (int(x) for x in list_id.split("/", 1))
+            due_s = f"{due.isoformat()}T12:00:00+00:00" if due else None
+            cid = await DeckClient(nc).create_card(b, st, title, due_s, notes)
+            uid = f"deck:{cid}"
+        else:
+            uid = await asyncio.to_thread(
+                CalDavClient(nc, self.db).create_task, list_id, title, due, notes
+            )
+        self.db.mark_seen(
+            [(uid, "deck" if "/" in list_id else "tasks")]
+        )  # no slip for own creations
+        self.db.log("task", True, f"created: {title}")
+        self._wake.set()
+        return uid
+
+    def task_lists(self) -> list[dict[str, Any]]:
+        out = [
+            {"id": c.id, "name": c.name, "source": "tasks"}
+            for c in self.state.collections
+            if c.vtodo
+        ]
+        for st in self.state.stacks:
+            out.append(
+                {
+                    "id": f"{st.board_id}/{st.stack_id}",
+                    "name": f"{st.board_title} · {st.stack_title}",
+                    "source": "deck",
+                }
+            )
+        return out

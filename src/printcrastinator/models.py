@@ -23,6 +23,10 @@ class TaskItem:
     board_id: int | None = None
     stack_id: int | None = None
     completed: bool = False
+    notes: str = ""
+    tags: tuple[str, ...] = ()
+    # Deck card id (int) for write-back; VTODO uid is already `uid`
+    card_id: int | None = None
 
     def days_late(self, today: date) -> int:
         """Positive when overdue, 0 when due today, negative when in the future."""
@@ -37,6 +41,7 @@ class TaskItem:
         d = asdict(self)
         d["due"] = self.due.isoformat() if self.due else None
         d["created"] = self.created.isoformat() if self.created else None
+        d["tags"] = list(self.tags)
         return d
 
 
