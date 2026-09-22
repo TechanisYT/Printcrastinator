@@ -370,6 +370,12 @@ def sec_settings(daemon: Daemon, dark: ui.dark_mode) -> None:
             "Use an app password (Settings → Security → Devices & sessions). "
             "It works with SSO logins. Untick 'Allow filesystem access' on it."
         ).classes("text-sm opacity-70")
+        from .. import secrets as _secrets
+
+        ui.label(
+            f"Passwords are stored in: {_secrets.backend_name()}. "
+            "The config file only holds references."
+        ).classes("text-xs opacity-70")
         url = ui.input(
             "Nextcloud URL", value=cfg.nextcloud.url, placeholder="https://cloud.example.org"
         ).classes("w-96")
@@ -418,6 +424,10 @@ def sec_settings(daemon: Daemon, dark: ui.dark_mode) -> None:
                             ui.label(f"user {ec.username}").classes("text-xs opacity-70")
 
                         def remove(i=i):
+                            from .. import secrets as _s
+
+                            _s.delete(_s.MARK_KEYRING + cfg.extra_calendars[i].id)
+                            _s.delete(_s.MARK_VAULT + cfg.extra_calendars[i].id)
                             del cfg.extra_calendars[i]
                             save_config(cfg)
                             daemon.reload_config(cfg)

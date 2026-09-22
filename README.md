@@ -30,8 +30,9 @@ lists as "always print".
 - MCP server (`pc mcp`) exposing the same task tools to Claude Code or any MCP client.
 - Extra calendars beyond Nextcloud: ICS/webcal subscription links (e.g. a university timetable) or other CalDAV servers, with their own credentials.
 - Wake-aware: the daily check also runs after resume from sleep and after screen unlock.
-- No credentials in the repo. Config lives in `~/.config/printcrastinator/config.toml`
-  (mode 0600), state in `~/.local/state/printcrastinator/`.
+- No credentials on disk: passwords go to the system keyring (KWallet, GNOME Keyring, any
+  Secret Service provider), the config file only holds references. Encrypted vault fallback
+  when no keyring is available.
 
 ## Hardware
 
@@ -84,7 +85,7 @@ Everything is editable in the web UI. The TOML file has these sections:
 
 | Section | Keys |
 |---|---|
-| `nextcloud` | `url`, `username`, `app_password` |
+| `nextcloud` | `url`, `username`, `app_password` (keyring reference) |
 | `printer` | `device`, `width_px`, `band_lines`, `feed_after_mm`, `density`, `fallback_codepage` |
 | `daily` | `earliest_hour` (default 6), `print_calendar_only_days` |
 | `slips` | `enabled_tasks`, `enabled_deck`, `debounce_seconds` |

@@ -41,3 +41,6 @@ a recurring task does not hide future ones.
 - The daily print is gated atomically in SQLite so two triggers can never print twice.
 - Nextcloud access uses an app password (works with the Authentik SSO login, cannot be
   scoped to single apps; turn off "Allow filesystem access" on the token).
+- Passwords are never written to `config.toml`. They go to the system keyring (KWallet /
+  Secret Service) via `keyring`; the config holds `@keyring:<key>` markers. Without a keyring
+  an encrypted vault file in the state dir is used (see 04).

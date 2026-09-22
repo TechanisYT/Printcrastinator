@@ -5,8 +5,17 @@ OIDC login because app passwords are validated by Nextcloud itself. App password
 limited to specific apps; turn off "Allow filesystem access" on the token in
 Settings → Security → Devices & sessions.
 
-Credentials are entered in the web UI (Settings page, "Test connection") and stored in
-`~/.config/printcrastinator/config.toml` with mode 0600.
+Credentials are entered in the web UI (Settings page, "Test connection"). The password is
+stored in the **system keyring** (KWallet on KDE, via the Secret Service API) under service
+`printcrastinator`; `config.toml` only contains the marker `@keyring:nextcloud`. Extra
+calendar passwords use `@keyring:extra:<name>`. A plaintext password found in the file
+(older configs, hand edits) is migrated into the keyring on the next load and the file is
+rewritten.
+
+Fallback when no keyring is reachable (`PRINTCRASTINATOR_SECRETS=vault` forces it): a
+Fernet-encrypted `vault.json` in `~/.local/state/printcrastinator/` with its key in
+`vault.key` (0600) next to it. That protects against reading or accidentally sharing the
+config file, not against another process running as the same user.
 
 ## Tasks (CalDAV VTODO)
 

@@ -20,6 +20,8 @@ dependencies = [
     "textual>=8.2.8",
     "mcp>=2.2.0",
     "recurring-ical-events>=3.8.2",
+    "keyring>=25.7.0",
+    "cryptography>=50.0.1",
 ]
 
 [project.scripts]

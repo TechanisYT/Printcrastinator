@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import tomllib
 from dataclasses import dataclass, field, fields, is_dataclass
@@ -9,6 +10,8 @@ from pathlib import Path
 from typing import Any
 
 import tomli_w
+
+log = logging.getLogger(__name__)
 
 APP_NAME = "printcrastinator"
 
@@ -209,21 +212,60 @@ def _from_dict(cls: type, data: dict[str, Any]) -> Any:
     return cls(**kwargs)
 
 
+def _secret_slots(cfg: Config) -> list[tuple[Any, str, str]]:
+    """(object, attribute, secret key) for every password field."""
+    slots = [(cfg.nextcloud, "app_password", "nextcloud")]
+    for ec in cfg.extra_calendars:
+        slots.append((ec, "password", ec.id))
+    return slots
+
+
 def load_config(path: Path | None = None) -> Config:
+    """Load the config and resolve secret markers. Plaintext passwords found in the file are
+    moved into the secret store and the file is rewritten without them."""
+    from . import secrets
+
     path = path or config_path()
     if not path.exists():
         return Config()
     with path.open("rb") as fh:
         raw = tomllib.load(fh)
-    return _from_dict(Config, raw)
+    cfg = _from_dict(Config, raw)
+    migrate = False
+    for obj, attr, _key in _secret_slots(cfg):
+        value = getattr(obj, attr)
+        if not value:
+            continue
+        if secrets.is_marker(value):
+            try:
+                setattr(obj, attr, secrets.load(value))
+            except Exception as exc:
+                log.error("cannot read secret %s: %s", value, exc)
+                setattr(obj, attr, "")
+        else:
+            migrate = True
+    if migrate:
+        log.info("moving plaintext passwords from %s into the secret store", path)
+        save_config(cfg, path)
+    return cfg
 
 
 def save_config(cfg: Config, path: Path | None = None) -> Path:
+    """Write the config; passwords go to the secret store and only markers hit the disk."""
+    from . import secrets
+
     path = path or config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
+    data = cfg.to_dict()
+    # replace secrets in the serialisable dict, never in the live config object
+    if cfg.nextcloud.app_password:
+        data["nextcloud"]["app_password"] = secrets.store("nextcloud", cfg.nextcloud.app_password)
+    for ec, entry in zip(cfg.extra_calendars, data["extra_calendars"], strict=True):
+        if ec.password:
+            entry["password"] = secrets.store(ec.id, ec.password)
     tmp = path.with_suffix(".tmp")
     with tmp.open("wb") as fh:
-        tomli_w.dump(cfg.to_dict(), fh)
+        tomli_w.dump(data, fh)
     os.chmod(tmp, 0o600)
     tmp.replace(path)
     return path
