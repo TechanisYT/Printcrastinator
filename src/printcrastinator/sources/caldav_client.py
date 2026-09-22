@@ -31,34 +31,68 @@ class Collection:
 
 
 class CalDavClient:
-    def __init__(self, nc: NextcloudConfig, db: Database | None = None) -> None:
+    """CalDAV access. Default: the Nextcloud account. `dav_url`/credentials override it for
+    other servers; `id_prefix` keeps collection ids unique across sources."""
+
+    def __init__(
+        self,
+        nc: NextcloudConfig,
+        db: Database | None = None,
+        *,
+        dav_url: str = "",
+        username: str = "",
+        password: str = "",
+        id_prefix: str = "",
+        name_override: str = "",
+    ) -> None:
         self.nc = nc
         self.db = db
+        self.dav_url = dav_url or f"{nc.base_url}/remote.php/dav/"
+        self.username = username or nc.username
+        self.password = password or nc.app_password
+        self.id_prefix = id_prefix
+        self.name_override = name_override
         self._client: caldav.DAVClient | None = None
 
     def _dav(self) -> caldav.DAVClient:
         if self._client is None:
             self._client = caldav.DAVClient(
-                url=f"{self.nc.base_url}/remote.php/dav/",
-                username=self.nc.username,
-                password=self.nc.app_password,
-                timeout=30,
+                url=self.dav_url, username=self.username, password=self.password, timeout=30
             )
         return self._client
 
+    def _raw_calendars(self) -> list[caldav.Calendar]:
+        """Principal discovery; if the URL is itself a calendar collection, use it directly."""
+        try:
+            cals = self._dav().principal().calendars()
+            if cals:
+                return cals
+        except Exception as exc:
+            log.debug("principal discovery failed for %s: %s", self.dav_url, exc)
+        cal = caldav.Calendar(client=self._dav(), url=self.dav_url)
+        cal.get_supported_components()  # raises if this is not a calendar
+        return [cal]
+
     def collections(self) -> list[Collection]:
         out: list[Collection] = []
-        for cal in self._dav().principal().calendars():
+        cals = self._raw_calendars()
+        for cal in cals:
             try:
                 comps = set(cal.get_supported_components())
             except Exception:  # some servers omit the property
                 comps = {"VEVENT", "VTODO"}
             url = str(cal.url)
-            cid = url.rstrip("/").rsplit("/", 1)[-1]
+            cid = self.id_prefix + url.rstrip("/").rsplit("/", 1)[-1]
+            try:
+                name = cal.get_display_name() or cid
+            except Exception:
+                name = cid
+            if self.name_override:
+                name = self.name_override if len(cals) == 1 else f"{self.name_override}: {name}"
             out.append(
                 Collection(
                     id=cid,
-                    name=cal.get_display_name() or cid,
+                    name=name,
                     url=url,
                     vtodo="VTODO" in comps,
                     vevent="VEVENT" in comps,

@@ -21,6 +21,7 @@ from .render import image as render_image
 from .render import notify, screen
 from .sources.caldav_client import CalDavClient, Collection
 from .sources.deck import DeckClient, DeckStack
+from .sources.extra import fetch_extra
 
 log = logging.getLogger(__name__)
 
@@ -139,7 +140,8 @@ class Daemon:
             # One client, sequential: parallel CalDAV sessions trip Nextcloud's auth throttling.
             r_t: Any = _retry(lambda: cal.fetch_tasks(today))
             r_e: Any = _retry(lambda: cal.fetch_events(today, disabled))
-            return r_t, r_e
+            r_x = fetch_extra(self.cfg.extra_calendars, nc, today, disabled, self.db)
+            return r_t, r_e, r_x
 
         results = await asyncio.gather(
             asyncio.to_thread(caldav_both), deck.fetch(), return_exceptions=True
@@ -147,10 +149,11 @@ class Daemon:
         ok = True
         errors: dict[str, str] = {}
         r_both, r_deck = results
+        r_extra: Any = None
         if isinstance(r_both, BaseException):
             r_tasks = r_events = r_both
         else:
-            r_tasks, r_events = r_both
+            r_tasks, r_events, r_extra = r_both
         if isinstance(r_tasks, BaseException):
             ok, errors["tasks"] = False, str(r_tasks)
             log.warning("tasks fetch failed: %s", r_tasks)
@@ -163,6 +166,12 @@ class Daemon:
         else:
             cols, self.state.events = r_events
             self._merge_collections(cols)
+        if r_extra is not None:
+            x_cols, x_events, x_errors = r_extra
+            self._merge_collections(x_cols)
+            self.state.events = self.state.events + x_events
+            for name, err in x_errors.items():
+                errors[f"calendar {name}"] = err
         if isinstance(r_deck, BaseException):
             ok, errors["deck"] = False, str(r_deck)
             log.warning("deck fetch failed: %s", r_deck)

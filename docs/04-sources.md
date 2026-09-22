@@ -47,3 +47,17 @@ shows hidden items and allows unhiding.
 
 Each source fetch is independent. A failing source is logged and the last successful result is
 reused for that poll (stale-while-error), the poll loop backs off exponentially (5 s → 5 min).
+
+## Extra calendars (outside Nextcloud)
+
+`[[extra_calendars]]` entries in the config (managed in Settings → Extra calendars), each with
+`name`, `kind`, `url`, optional `username`/`password`:
+
+- `kind = "ics"`: a public or `webcal://` subscription link (typical for universities). Fetched
+  with `If-None-Match`/`If-Modified-Since`, cached in `caldav_cache` under `ics:<id>`, and
+  expanded for the day with `recurring_ical_events` (RRULE, EXDATE, RECURRENCE-ID handled).
+- `kind = "caldav"`: another CalDAV server. The URL may be an account root (principal
+  discovery) or a single calendar collection; collection ids are prefixed with the calendar id
+  so the Calendars page toggles work per collection.
+
+Errors are reported per calendar in the daemon status and never block the Nextcloud sources.

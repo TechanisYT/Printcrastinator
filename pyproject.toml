@@ -19,6 +19,7 @@ dependencies = [
     "python-dateutil>=2.9",
     "textual>=8.2.8",
     "mcp>=2.2.0",
+    "recurring-ical-events>=3.8.2",
 ]
 
 [project.scripts]

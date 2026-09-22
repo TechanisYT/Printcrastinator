@@ -56,6 +56,21 @@ class NextcloudConfig:
 
 
 @dataclass
+class ExtraCalendar:
+    """An additional calendar outside Nextcloud: a CalDAV account/collection or an ICS feed."""
+
+    name: str = ""
+    kind: str = "ics"  # "ics" (public/webcal link) or "caldav" (account or collection URL)
+    url: str = ""
+    username: str = ""
+    password: str = ""
+
+    @property
+    def id(self) -> str:
+        return "extra:" + "".join(ch if ch.isalnum() else "-" for ch in self.name.lower())
+
+
+@dataclass
 class PrinterConfig:
     device: str = "/dev/usb/lp0"
     width_px: int = 384
@@ -155,6 +170,7 @@ class Config:
     ui: UiConfig = field(default_factory=UiConfig)
     logo: LogoConfig = field(default_factory=LogoConfig)
     ai: AiConfig = field(default_factory=AiConfig)
+    extra_calendars: list[ExtraCalendar] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return _asdict(self)
@@ -167,6 +183,8 @@ class Config:
 def _asdict(obj: Any) -> Any:
     if is_dataclass(obj) and not isinstance(obj, type):
         return {f.name: _asdict(getattr(obj, f.name)) for f in fields(obj)}
+    if isinstance(obj, list):
+        return [_asdict(x) for x in obj]
     return obj
 
 
@@ -180,6 +198,8 @@ def _from_dict(cls: type, data: dict[str, Any]) -> Any:
         current = getattr(defaults, f.name)
         if is_dataclass(current) and isinstance(value, dict):
             kwargs[f.name] = _from_dict(type(current), value)
+        elif f.name == "extra_calendars" and isinstance(value, list):
+            kwargs[f.name] = [_from_dict(ExtraCalendar, v) for v in value if isinstance(v, dict)]
         elif isinstance(current, bool):
             kwargs[f.name] = bool(value)
         elif isinstance(current, int) and not isinstance(value, bool):

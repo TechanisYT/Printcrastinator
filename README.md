@@ -28,6 +28,7 @@ lists as "always print".
 - Local AI via Ollama: a morning briefing and natural-language task editing ("I paid the
   electricity bill", "add 'order screws' to Projects for Friday") with tool calls, fully offline.
 - MCP server (`pc mcp`) exposing the same task tools to Claude Code or any MCP client.
+- Extra calendars beyond Nextcloud: ICS/webcal subscription links (e.g. a university timetable) or other CalDAV servers, with their own credentials.
 - Wake-aware: the daily check also runs after resume from sleep and after screen unlock.
 - No credentials in the repo. Config lives in `~/.config/printcrastinator/config.toml`
   (mode 0600), state in `~/.local/state/printcrastinator/`.
@@ -92,6 +93,7 @@ Everything is editable in the web UI. The TOML file has these sections:
 | `ui` | `language` (`en` or `de`), `dark` |
 | `logo` | `mode` (off/random/fixed), `file`, `max_height`, `dither` |
 | `ai` | `enabled`, `url`, `model`, `num_ctx`, `max_tokens`, `think`, `summary_on_open` |
+| `[[extra_calendars]]` | `name`, `kind` (ics/caldav), `url`, `username`, `password` |
 
 ## Development
 

@@ -13,7 +13,7 @@ from nicegui import app, ui
 
 from .. import logos
 from ..api import make_router
-from ..config import Config, load_config, save_config
+from ..config import Config, ExtraCalendar, load_config, save_config
 from ..daemon import Daemon
 from ..printer.escpos_out import DENSITY_PRESETS
 from ..sources.caldav_client import CalDavClient
@@ -396,6 +396,96 @@ def sec_settings(daemon: Daemon, dark: ui.dark_mode) -> None:
                 ui.notify(f"connection failed: {exc}", type="negative", multi_line=True)
 
         ui.button("Test connection", icon="link", on_click=test).props("outline")
+    with ui.card().classes("w-full"):
+        ui.label("Extra calendars").classes("font-bold")
+        ui.label(
+            "Calendars outside Nextcloud, e.g. your university. ICS: a public or webcal:// "
+            "subscription link. CalDAV: an account URL (principal discovery) or a direct "
+            "calendar collection URL, with its own credentials. Enable/disable them on the "
+            "Calendars page after the next poll."
+        ).classes("text-sm opacity-70")
+        extra_box = ui.column().classes("w-full gap-1")
+
+        def refresh_extra():
+            extra_box.clear()
+            with extra_box:
+                for i, ec in enumerate(cfg.extra_calendars):
+                    with ui.row().classes("w-full items-center"):
+                        ui.badge(ec.kind.upper()).props("outline")
+                        ui.label(ec.name).classes("font-bold")
+                        ui.label(ec.url).classes("text-xs opacity-70 grow break-all")
+                        if ec.username:
+                            ui.label(f"user {ec.username}").classes("text-xs opacity-70")
+
+                        def remove(i=i):
+                            del cfg.extra_calendars[i]
+                            save_config(cfg)
+                            daemon.reload_config(cfg)
+                            refresh_extra()
+
+                        ui.button(icon="delete", on_click=remove).props("flat dense")
+                if not cfg.extra_calendars:
+                    ui.label("none").classes("opacity-70")
+                with ui.row().classes("w-full items-end gap-2 flex-wrap"):
+                    n_name = ui.input("Name", placeholder="University").classes("w-40")
+                    n_kind = ui.select(
+                        {"ics": "ICS / webcal link", "caldav": "CalDAV"}, value="ics"
+                    ).classes("w-40")
+                    n_url = ui.input("URL", placeholder="https://… or webcal://…").classes("w-96")
+                    n_user = ui.input("Username (optional)").classes("w-40")
+                    n_pw = ui.input(
+                        "Password (optional)", password=True, password_toggle_button=True
+                    ).classes("w-40")
+
+                    def add():
+                        if not n_name.value.strip() or not n_url.value.strip():
+                            ui.notify("name and URL are required", type="warning")
+                            return
+                        cfg.extra_calendars.append(
+                            ExtraCalendar(
+                                name=n_name.value.strip(),
+                                kind=n_kind.value,
+                                url=n_url.value.strip(),
+                                username=n_user.value.strip(),
+                                password=n_pw.value,
+                            )
+                        )
+                        save_config(cfg)
+                        daemon.reload_config(cfg)
+                        ui.notify("calendar added; polling", type="positive")
+                        refresh_extra()
+
+                    async def test_new():
+                        from datetime import date as _date
+
+                        from ..sources.extra import fetch_extra
+
+                        ec = ExtraCalendar(
+                            name=n_name.value.strip() or "test",
+                            kind=n_kind.value,
+                            url=n_url.value.strip(),
+                            username=n_user.value.strip(),
+                            password=n_pw.value,
+                        )
+                        cols, evs, errs = await asyncio.to_thread(
+                            fetch_extra, [ec], cfg.nextcloud, _date.today(), set(), None
+                        )
+                        if errs:
+                            ui.notify(
+                                f"failed: {list(errs.values())[0]}",
+                                type="negative",
+                                multi_line=True,
+                            )
+                        else:
+                            ui.notify(
+                                f"OK: {len(cols)} calendar(s), {len(evs)} event(s) today",
+                                type="positive",
+                            )
+
+                    ui.button("Test", icon="link", on_click=test_new).props("outline")
+                    ui.button("Add", icon="add", on_click=add)
+
+        refresh_extra()
     with ui.card().classes("w-full"):
         ui.label("Daily receipt").classes("font-bold")
         earliest = ui.number("Earliest hour", value=cfg.daily.earliest_hour, min=0, max=23)
