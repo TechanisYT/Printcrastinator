@@ -46,6 +46,37 @@ def daemon_reachable(cfg: Config) -> bool:
         return False
 
 
+def _task_from_dict(x: dict[str, Any]) -> TaskItem:
+    return TaskItem(
+        uid=x["uid"],
+        source=x["source"],
+        title=x["title"],
+        due=date.fromisoformat(x["due"]) if x.get("due") else None,
+        list_id=x["list_id"],
+        list_name=x["list_name"],
+        created=datetime.fromisoformat(x["created"]) if x.get("created") else None,
+        url=x.get("url", ""),
+        board_id=x.get("board_id"),
+        stack_id=x.get("stack_id"),
+        notes=x.get("notes", ""),
+        tags=tuple(x.get("tags") or ()),
+        card_id=x.get("card_id"),
+    )
+
+
+def _event_from_dict(x: dict[str, Any]) -> CalendarEvent:
+    return CalendarEvent(
+        uid=x["uid"],
+        title=x["title"],
+        start=datetime.fromisoformat(x["start"]),
+        end=datetime.fromisoformat(x["end"]),
+        all_day=x["all_day"],
+        calendar_id=x["calendar_id"],
+        calendar_name=x["calendar_name"],
+        location=x.get("location", ""),
+    )
+
+
 def agenda_from_dict(d: dict[str, Any]) -> DailyAgenda:
     def task(x: dict[str, Any]) -> TaskItem:
         return TaskItem(

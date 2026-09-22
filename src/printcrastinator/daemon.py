@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import time
@@ -70,6 +71,41 @@ class Daemon:
         self._tasks: list[asyncio.Task[Any]] = []
         self.seeded = self.db.seen_count() > 0
         self.db.seed_quotes(i18n.QUOTES)
+        self._restore_snapshot()
+
+    # ---- snapshot: last successful fetch survives restarts and failed polls ------------------
+
+    def _save_snapshot(self) -> None:
+        from .client import agenda_from_dict  # noqa: F401  (same JSON shape helpers)
+
+        payload = {
+            "tasks": [t.to_dict() for t in self.state.tasks],
+            "cards": [t.to_dict() for t in self.state.cards],
+            "events": [e.to_dict() for e in self.state.events],
+            "collections": [c.__dict__ for c in self.state.collections],
+            "stacks": [st.__dict__ for st in self.state.stacks],
+            "at": time.time(),
+        }
+        self.db.kv_set("snapshot", json.dumps(payload))
+
+    def _restore_snapshot(self) -> None:
+        raw = self.db.kv_get("snapshot")
+        if not raw:
+            return
+        try:
+            from .client import _event_from_dict, _task_from_dict
+
+            d = json.loads(raw)
+            self.state.tasks = [_task_from_dict(x) for x in d["tasks"]]
+            self.state.cards = [_task_from_dict(x) for x in d["cards"]]
+            self.state.events = [_event_from_dict(x) for x in d["events"]]
+            self.state.collections = [Collection(**c) for c in d["collections"]]
+            self.state.stacks = [DeckStack(**st) for st in d["stacks"]]
+            self.state.last_ok = float(d.get("at", 0))
+            self.state.last_error = "using data from last successful fetch"
+            log.info("restored snapshot from %s", time.ctime(self.state.last_ok))
+        except Exception as exc:  # noqa: BLE001
+            log.warning("snapshot restore failed: %s", exc)
 
     # ---- lifecycle -----------------------------------------------------------------------
 
@@ -181,6 +217,7 @@ class Daemon:
         self.state.last_error = "; ".join(f"{k}: {v}" for k, v in errors.items())
         if ok:
             self.state.last_ok = time.time()
+            self._save_snapshot()
         return ok
 
     def _merge_collections(self, cols: list[Collection]) -> None:

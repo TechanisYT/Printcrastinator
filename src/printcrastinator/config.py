@@ -141,6 +141,8 @@ class AiConfig:
     timeout: int = 180
     # Show an AI morning briefing when the terminal view opens.
     summary_on_open: bool = True
+    # Reply language: "en", "de", or "auto" (follow the user's message).
+    language: str = "en"
 
 
 @dataclass

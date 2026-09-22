@@ -230,9 +230,16 @@ SYSTEM = (
     "read and change settings, print the receipt "
     "and run printer tests with the provided tools. Always use the uid "
     "exactly as listed. When the user refers to a task by a rough description, pick the best "
-    "match; if it is ambiguous, ask. After tool calls, confirm in one short sentence. Answer in "
-    "the language the user writes in. Never invent tasks that are not in the list.\n\n"
+    "match; if it is ambiguous, ask. After tool calls, confirm in one short sentence. "
+    "Never invent tasks that are not in the list. Task titles may be in German or dialect; "
+    "that does not change your reply language.\n\n"
 )
+
+LANGUAGE_RULE = {
+    "en": "Always reply in English, whatever language the tasks or the user use.\n\n",
+    "de": "Antworte immer auf Deutsch, egal in welcher Sprache Aufgaben oder Nutzer schreiben.\n\n",
+    "auto": "Reply in the language the user's message is written in.\n\n",
+}
 
 SUMMARY_PROMPT = (
     "Write a short morning briefing (max 6 lines, plain text, no markdown headings): what is on "
@@ -275,12 +282,17 @@ class Assistant:
             return f"ollama unreachable at {self.cfg.url}: {exc}"
 
     async def _system(self, agenda: DailyAgenda) -> str:
-        return SYSTEM + agenda_context(
-            agenda,
-            self.daemon.task_lists(),
-            date.today(),
-            self.daemon.calendars(),
-            await self.daemon.deck_meta(),
+        rule = LANGUAGE_RULE.get(self.cfg.language, LANGUAGE_RULE["en"])
+        return (
+            SYSTEM
+            + rule
+            + agenda_context(
+                agenda,
+                self.daemon.task_lists(),
+                date.today(),
+                self.daemon.calendars(),
+                await self.daemon.deck_meta(),
+            )
         )
 
     async def summary(self, agenda: DailyAgenda) -> str:

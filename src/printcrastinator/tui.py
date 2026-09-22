@@ -104,6 +104,7 @@ class TaskView(App):
         self.lang = self.cfg.ui.language
         self.history: list[dict[str, str]] = []
         self.agenda: dict[str, Any] = {}
+        self.status_error = ""
         self.ai_enabled = self.cfg.ai.enabled
 
     # ---- api ---------------------------------------------------------------------------------
@@ -155,6 +156,8 @@ class TaskView(App):
                 r = await c.get("/api/agenda")
                 r.raise_for_status()
                 self.agenda = r.json()
+                st = (await c.get("/api/status")).json()
+                self.status_error = st.get("last_error", "")
         except Exception as exc:
             box = self.query_one("#tasks", VerticalScroll)
             box.remove_children()
@@ -191,6 +194,8 @@ class TaskView(App):
         box = self.query_one("#tasks", VerticalScroll)
         box.remove_children()
         groups: list[Vertical] = []
+        if self.status_error:
+            box.mount(Static(f"[yellow]⚠ {self.status_error}[/yellow]", classes="empty"))
 
         # TODAY: events + tasks due today
         kids: list[Static] = []

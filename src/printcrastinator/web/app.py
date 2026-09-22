@@ -643,6 +643,11 @@ def sec_settings(daemon: Daemon, dark: ui.dark_mode) -> None:
             "Briefing when the terminal view opens", value=cfg.ai.summary_on_open
         )
         ai_think = ui.switch("Allow model thinking (slow)", value=cfg.ai.think)
+        ai_lang = ui.select(
+            {"en": "English", "de": "Deutsch", "auto": "Follow my message"},
+            value=cfg.ai.language,
+            label="Reply language",
+        ).classes("w-48")
 
         async def ai_test():
             from ..ai import Assistant
@@ -717,6 +722,7 @@ def sec_settings(daemon: Daemon, dark: ui.dark_mode) -> None:
             model=ai_model.value.strip() or "gemma4:12B",
             summary_on_open=bool(ai_summary.value),
             think=bool(ai_think.value),
+            language=ai_lang.value,
         )
         cfg.screen = replace(cfg.screen, notify=bool(notify_sw.value), terminal=bool(term_sw.value))
         save_config(cfg)
