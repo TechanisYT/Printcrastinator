@@ -1,0 +1,12 @@
+{"board": {"id": 3, "title": "Projects"},
+ "stacks": [
+  {"id": 10, "title": "Backlog", "cards": [
+    {"id": 100, "title": "Design PCB rev 2", "duedate": null, "archived": false, "done": null, "createdAt": 1758400000},
+    {"id": 101, "title": "Order M3 screws", "duedate": "2026-09-25T10:00:00+00:00", "archived": false, "done": null},
+    {"id": 102, "title": "Archived", "duedate": null, "archived": true, "done": null},
+    {"id": 103, "title": "Finished", "duedate": "2026-09-22T00:00:00+00:00", "archived": false, "done": "2026-09-21T12:00:00+00:00"}
+  ]},
+  {"id": 11, "title": "Doing", "cards": [
+    {"id": 104, "title": "Write docs", "duedate": "2026-09-20T22:30:00+00:00", "archived": false, "done": null}
+  ]}
+ ]}

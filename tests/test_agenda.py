@@ -1,0 +1,65 @@
+from datetime import date, timedelta
+
+from printcrastinator import agenda
+from printcrastinator.models import TaskItem
+
+DAY = date(2026, 9, 22)
+
+
+def t(uid, title, due, src="tasks", list_id="personal", board=None, stack=None):
+    return TaskItem(uid, src, title, due, list_id, list_id.title(), board_id=board, stack_id=stack)
+
+
+def test_rules_and_sorting():
+    tasks = [
+        t("a", "Zeta today", DAY),
+        t("b", "Alpha today", DAY),
+        t("c", "Old", DAY - timedelta(days=5)),
+        t("d", "Older", DAY - timedelta(days=9)),
+        t("e", "Future no rule", DAY + timedelta(days=2)),
+        t("f", "No due, always list", None, list_id="always"),
+        t("g", "No due, normal list", None),
+    ]
+    cards = [
+        t("deck:1", "Card in always stack", None, "deck", "3/10", 3, 10),
+        t("deck:2", "Card in other stack", None, "deck", "3/11", 3, 11),
+        t("deck:3", "Card overdue other stack", DAY - timedelta(days=1), "deck", "3/11", 3, 11),
+    ]
+    ag = agenda.build(
+        DAY,
+        tasks,
+        cards,
+        [],
+        suppressed=set(),
+        always_lists={"always"},
+        always_stacks={(3, 10)},
+    )
+    assert [x.uid for x in ag.overdue] == ["d", "c", "deck:3"]
+    assert [x.uid for x in ag.due_today] == ["b", "a"]
+    assert [g.title for g in ag.always] == ["3/10", "Always"]
+    assert [x.uid for g in ag.always for x in g.items] == ["deck:1", "f"]
+    assert ag.has_tasks
+
+
+def test_suppression_is_per_occurrence():
+    tasks = [t("r", "Recurring", DAY)]
+    ag = agenda.build(
+        DAY,
+        tasks,
+        [],
+        [],
+        suppressed={("r", DAY.isoformat())},
+        always_lists=set(),
+        always_stacks=set(),
+    )
+    assert not ag.has_tasks
+    ag = agenda.build(
+        DAY,
+        tasks,
+        [],
+        [],
+        suppressed={("r", "2026-09-15")},
+        always_lists=set(),
+        always_stacks=set(),
+    )
+    assert ag.has_tasks
