@@ -35,6 +35,7 @@ class Options:
     notes_max_lines: int = 3
     group_by_list: bool = True
     show_list: bool = True
+    today: date | None = None  # reference day for "today" labels (default: the real date)
 
 
 def _event_time(ev: CalendarEvent, lang: str) -> str:
@@ -190,8 +191,9 @@ def _birthdays(r: Receipt, agenda: DailyAgenda, lang: str) -> None:
     r.add(Spacer(18))
 
 
-def _due_label(agenda: DailyAgenda, lang: str) -> str:
-    if agenda.day == date.today():
+def _due_label(agenda: DailyAgenda, lang: str, opt: Options | None = None) -> str:
+    today = (opt.today if opt and opt.today else None) or date.today()
+    if agenda.day == today:
         return i18n.label(lang, "due_today")
     return i18n.label(lang, "due_on", d=agenda.day.strftime("%d.%m."))
 
@@ -231,7 +233,7 @@ def daily_receipt(
         _footer(r, agenda, lang, opt)
         return r
     if agenda.due_today:
-        r.add(SectionHeader(_due_label(agenda, lang), hint=str(len(agenda.due_today))))
+        r.add(SectionHeader(_due_label(agenda, lang, opt), hint=str(len(agenda.due_today))))
         _section_items(r, agenda.due_today, agenda, lang, opt, marker=False)
         r.add(Spacer(14))
     if agenda.overdue:
@@ -274,7 +276,7 @@ def cards_receipt(agenda: DailyAgenda, lang: str = "en", opt: Options | None = N
         r.add(CheckItem(t.title, meta=head + ("\n" + n if n else "")), Spacer(10))
 
     for t in agenda.due_today:
-        card(t, _due_label(agenda, lang))
+        card(t, _due_label(agenda, lang, opt))
     for t in agenda.overdue:
         card(t, i18n.label(lang, "overdue"))
     for g in agenda.always:

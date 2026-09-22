@@ -16,12 +16,13 @@ NOW = datetime(2026, 9, 22, 14, 32)
 
 
 def _cases():
+    opt = layout.Options(today=DAY)  # snapshots must not depend on the real date
     return {
-        "sample_en": layout.daily_receipt(layout.sample_agenda(DAY), "en"),
-        "sample_de": layout.daily_receipt(layout.sample_agenda(DAY), "de"),
-        "empty": layout.daily_receipt(layout.empty_agenda(DAY), "en"),
+        "sample_en": layout.daily_receipt(layout.sample_agenda(DAY), "en", "list", opt),
+        "sample_de": layout.daily_receipt(layout.sample_agenda(DAY), "de", "list", opt),
+        "empty": layout.daily_receipt(layout.empty_agenda(DAY), "en", "list", opt),
         "slip": layout.slip_receipt(layout.sample_slip_items(DAY), NOW, "en"),
-        "sample_cards": layout.daily_receipt(layout.sample_agenda(DAY), "en", "cards"),
+        "sample_cards": layout.daily_receipt(layout.sample_agenda(DAY), "en", "cards", opt),
         "calendar_1day": layout.calendar_receipt([(DAY, layout.sample_agenda(DAY).events)], "en"),
         "calendar_3days": layout.calendar_receipt(layout.sample_calendar_days(DAY), "en"),
         "calendar_longtext": layout.calendar_receipt([(DAY, layout.sample_long_events(DAY))], "en"),
