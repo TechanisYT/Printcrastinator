@@ -45,3 +45,28 @@ def test_deck_cards_skip_archived_and_done():
     assert items[0].board_id == 3 and items[0].stack_id == 10
     assert items[1].due == date(2026, 9, 25)
     assert items[0].url.endswith("/board/3/card/100")
+
+
+def test_event_window_is_padded_around_day(monkeypatch):
+    """Nextcloud returns nothing for a window ending exactly at the next midnight, so the
+    client must query day-1 .. day+2 and let the parser filter (regression)."""
+    from datetime import datetime
+
+    from printcrastinator.config import NextcloudConfig
+    from printcrastinator.sources.caldav_client import CalDavClient, Collection
+
+    captured = {}
+
+    class FakeCal:
+        def search(self, **kw):
+            captured.update(kw)
+            return []
+
+    c = CalDavClient(NextcloudConfig("https://x", "u", "p"))
+    monkeypatch.setattr(c, "_calendar", lambda col: FakeCal())
+    monkeypatch.setattr(c, "ctag", lambda col: "")
+    c.events_raw(Collection("p", "P", "https://x/p/", False, True), date(2026, 9, 22))
+    assert isinstance(captured["start"], datetime)
+    assert captured["start"].date() == date(2026, 9, 21)
+    assert captured["end"].date() == date(2026, 9, 24)
+    assert captured["expand"] is True

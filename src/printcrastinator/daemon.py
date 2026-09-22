@@ -8,7 +8,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from . import agenda as agenda_mod
@@ -280,6 +280,31 @@ class Daemon:
             overdue_max_days=self.cfg.daily.overdue_max_days,
             overdue_max_count=self.cfg.daily.overdue_max_count,
         )
+
+    async def calendar_days(self, day_from: date, day_to: date) -> list[tuple[date, list]]:
+        days = []
+        d = day_from
+        while d <= day_to and len(days) < 14:
+            days.append((d, await self.events_for(d)))
+            d += timedelta(days=1)
+        return days
+
+    async def print_calendar(self, day_from: date, day_to: date | None = None) -> dict[str, Any]:
+        """Events only: a single day upright, several days as a rotated side-by-side table."""
+        day_to = day_to or day_from
+        days = await self.calendar_days(day_from, day_to)
+        img = render_image.render(
+            layout.calendar_receipt(days, self.cfg.ui.language, self.layout_options())
+        )
+        await asyncio.to_thread(self.printer.print_image, img)
+        n = sum(len(e) for _, e in days)
+        self.db.log("calendar", True, f"{day_from}..{day_to}: {n} events")
+        return {
+            "printed": True,
+            "from": day_from.isoformat(),
+            "to": day_to.isoformat(),
+            "events": n,
+        }
 
     async def print_day(self, day: date, layout_mode: str | None = None) -> dict[str, Any]:
         """Print the receipt for any day, no once-per-day gate, no screen output."""
@@ -622,7 +647,7 @@ class Daemon:
             fn = cal.complete_task if done else cal.uncomplete_task
             await asyncio.to_thread(fn, t.uid, t.list_id)
         self.db.log("task", True, f"{'done' if done else 'reopened'}: {t.title}")
-        self._wake.set()
+        await self._refresh_after_write()
         return t
 
     @staticmethod
@@ -653,7 +678,7 @@ class Daemon:
             f = {k: v for k, v in fields.items() if k not in ("labels", "assignees", "stack")}
             await asyncio.to_thread(CalDavClient(nc, self.db).update_task, t.uid, t.list_id, **f)
         self.db.log("task", True, f"edited: {fields.get('title') or t.title}")
-        self._wake.set()
+        await self._refresh_after_write()
         return t
 
     async def create_task(self, list_id: str, title: str, **fields: Any) -> str:
@@ -676,7 +701,7 @@ class Daemon:
             )
         self.db.mark_seen([(uid, "deck" if "/" in list_id else "tasks")])  # no slip for own
         self.db.log("task", True, f"created: {title}")
-        self._wake.set()
+        await self._refresh_after_write()
         return uid
 
     async def create_event(
@@ -698,8 +723,14 @@ class Daemon:
             location=location,
         )
         self.db.log("event", True, f"created: {title}")
-        self._wake.set()
+        await self._refresh_after_write()
         return uid
+
+    async def _refresh_after_write(self) -> None:
+        """Re-fetch right away so anything printed in the same breath sees the change."""
+        async with self._lock:
+            await self._refresh_sources(date.today())
+            self.last_poll_at = time.time()
 
     def calendars(self) -> list[dict[str, Any]]:
         """Writable Nextcloud calendars (extras are read-only)."""

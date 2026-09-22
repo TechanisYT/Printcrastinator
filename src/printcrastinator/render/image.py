@@ -13,6 +13,7 @@ from ..receipt.model import (
     CheckItem,
     EventLine,
     Picture,
+    RawImage,
     Receipt,
     Rule,
     SectionHeader,
@@ -35,7 +36,14 @@ LINE_FACTOR = 1.3
 ITEM_GAP = 6
 THRESHOLD = 128
 
-SIZES: dict[Size, int] = {"headline": 44, "section": 28, "subheader": 24, "body": 24, "small": 20}
+SIZES: dict[Size, int] = {
+    "headline": 44,
+    "section": 28,
+    "subheader": 24,
+    "body": 24,
+    "small": 20,
+    "tiny": 16,
+}
 # Weights: headers heavy, list subheaders bold, task titles medium, notes/meta regular.
 FONTS: dict[Size, str] = {
     "headline": "JetBrainsMono-ExtraBold.ttf",
@@ -43,6 +51,7 @@ FONTS: dict[Size, str] = {
     "subheader": "JetBrainsMono-Bold.ttf",
     "body": "JetBrainsMono-Medium.ttf",
     "small": "JetBrainsMono-Regular.ttf",
+    "tiny": "JetBrainsMono-Regular.ttf",
 }
 
 
@@ -342,6 +351,10 @@ def _render_block(c: _Canvas, b: Block) -> None:
             _picture(c, b)
         case Timeline():
             _timeline(c, b)
+        case RawImage(image=im):
+            c.ensure(im.height)
+            c.img.paste(im.convert("L"), ((WIDTH - im.width) // 2, c.y))
+            c.y += im.height
 
 
 def render(receipt: Receipt, top_pad: int = 8, bottom_pad: int = 8) -> Image.Image:
@@ -354,3 +367,103 @@ def render(receipt: Receipt, top_pad: int = 8, bottom_pad: int = 8) -> Image.Ima
     c.y += bottom_pad
     out = c.img.crop((0, 0, WIDTH, c.y))
     return out.point(lambda p: 255 if p > THRESHOLD else 0).convert("1")
+
+
+# ---- multi-day calendar, drawn landscape and rotated onto the 384 px paper -------------------
+
+
+def multi_day_calendar(days: list[tuple[str, list[TimelineEvent], list[str]]]) -> Image.Image:
+    """days: [(label, timed events, all-day titles)]. Returns a 384 px wide 1-bit image whose
+    content is rotated 90°, days side by side along the paper."""
+    from PIL import ImageOps
+
+    H = WIDTH  # landscape height = paper width
+    header_h = _line_height("subheader") + 6
+    lh_tiny = _line_height("tiny")
+    allday_rows = min(2, max((len(a) for _, _, a in days), default=0))
+    allday_h = allday_rows * lh_tiny + (4 if allday_rows else 0)
+    axis_w = text_width("00:00", "tiny") + 8
+    day_w = 230
+    gap = 6
+    W = MARGIN + axis_w + len(days) * (day_w + gap) + MARGIN
+    timed_all = [e for _, evs, _ in days for e in evs]
+    first = min((e.start_min // 60 for e in timed_all), default=8)
+    last = max((-(-e.end_min // 60) for e in timed_all), default=18)
+    if last - first < 6:
+        last = min(24, first + 6)
+    hours = last - first
+    top = 8 + header_h + allday_h
+    grid_h = H - top - 10
+    px_per_hour = grid_h / hours
+
+    img = Image.new("L", (W, H), 255)
+    d = ImageDraw.Draw(img)
+    d.fontmode = "1"
+
+    def y_of(minutes: int) -> int:
+        return int(top + (minutes - first * 60) * px_per_hour / 60)
+
+    axis_x = MARGIN + axis_w
+    # hour grid lines + labels
+    for h in range(first, last + 1):
+        y = y_of(h * 60)
+        d.line((axis_x, y, W - MARGIN, y), fill=0 if h in (first, last) else 160, width=1)
+        d.text((MARGIN, y - lh_tiny // 2), f"{h:02d}:00", font=font("tiny"), fill=0)
+    for i, (label, evs, allday) in enumerate(days):
+        x0 = axis_x + i * (day_w + gap)
+        x1 = x0 + day_w
+        d.text((x0 + 4, 8 + 2), label, font=font("subheader"), fill=0)
+        d.rectangle((x0, 8 + header_h - 3, x1 - 1, 8 + header_h - 1), fill=0)
+        ay = 8 + header_h + 2
+        for title in allday[:allday_rows]:
+            line = wrap(title, "tiny", day_w - 8)[0]
+            d.text((x0 + 4, ay), "▪ " + line if len(line) < 30 else line, font=font("tiny"), fill=0)
+            ay += lh_tiny
+        d.line((x0, top, x0, H - 10), fill=0, width=1)
+        placed, overflow = _assign_columns(list(evs) + [], 3)
+        # overflow events still get drawn, squeezed into the last column
+        placed += [(e, 2) for e in overflow]
+        ncols = max((c for _, c in placed), default=0) + 1
+        col_w = (day_w - 4 - 3 * (ncols - 1)) // max(1, ncols)
+
+        def _ov(a: TimelineEvent, b: TimelineEvent) -> bool:
+            return a.start_min < b.end_min and b.start_min < a.end_min
+
+        for e, col in placed:
+            span = 1
+            while col + span < ncols and not any(
+                c2 == col + span and _ov(e, o) for o, c2 in placed
+            ):
+                span += 1
+            ex0 = x0 + 2 + col * (col_w + 3)
+            ex1 = ex0 + span * col_w + (span - 1) * 3 - 1
+            ey0 = y_of(e.start_min)
+            ey1 = max(ey0 + lh_tiny + 4, y_of(e.end_min) - 1)
+            d.rectangle((ex0, ey0, ex1, ey1), fill=255, outline=0, width=2)
+            d.rectangle((ex0, ey0, ex0 + 4, ey1), fill=0)
+            lines = wrap(e.title, "tiny", ex1 - ex0 - 12)
+            max_lines = max(1, (ey1 - ey0 - 2) // lh_tiny)
+            if len(lines) > max_lines:
+                lines = lines[:max_lines]
+                if len(lines[-1]) > 1:
+                    lines[-1] = lines[-1][:-1] + "…"
+            ty = ey0 + 2
+            for line in lines:
+                d.text((ex0 + 8, ty), line, font=font("tiny"), fill=0)
+                ty += lh_tiny
+    d.line(
+        (
+            axis_x + len(days) * (day_w + gap) - gap,
+            top,
+            axis_x + len(days) * (day_w + gap) - gap,
+            H - 10,
+        ),
+        fill=0,
+    )
+    mono = img.point(lambda p: 255 if p > THRESHOLD else 0).convert("1")
+    rotated = mono.rotate(-90, expand=True)  # paper start = left edge of the table
+    return (
+        ImageOps.pad(rotated, (WIDTH, rotated.height), color=255)
+        if rotated.width < WIDTH
+        else rotated
+    )

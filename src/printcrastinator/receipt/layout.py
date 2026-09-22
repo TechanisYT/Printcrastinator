@@ -11,6 +11,7 @@ from .model import (
     CheckItem,
     EventLine,
     Picture,
+    RawImage,
     Receipt,
     Rule,
     SectionHeader,
@@ -253,6 +254,60 @@ def cards_receipt(agenda: DailyAgenda, lang: str = "en", opt: Options | None = N
     return r
 
 
+def _timeline_events(events: list[CalendarEvent], day: date) -> list[TimelineEvent]:
+    out = []
+    for e in events:
+        if e.all_day:
+            continue
+        s_min = _minutes(e.start) if e.start.astimezone().date() == day else 0
+        end_d = e.end.astimezone().date()
+        e_min = _minutes(e.end) if end_d == day else (24 * 60 if end_d > day else s_min)
+        if e_min <= s_min:
+            e_min = min(24 * 60, s_min + 30)
+        out.append(TimelineEvent(e.title, s_min, e_min))
+    return out
+
+
+def calendar_receipt(
+    days: list[tuple[date, list[CalendarEvent]]], lang: str = "en", opt: Options | None = None
+) -> Receipt:
+    """Events only. One day: the upright timeline. Several days: a rotated table with the days
+    side by side along the paper."""
+    from ..render import image as render_image
+
+    opt = opt or Options()
+    r = Receipt()
+    if opt.logo:
+        r.add(Picture(opt.logo, opt.logo_max_height, opt.logo_dither), Spacer(10))
+    if len(days) == 1:
+        day, events = days[0]
+        _header(r, day, lang, opt)
+        _events(r, DailyAgenda(day=day, events=events), lang)
+        r.add(Spacer(6), Rule(1), Spacer(12), TearLine())
+        return r
+    first, last = days[0][0], days[-1][0]
+    r.add(Rule(3), Spacer(8))
+    r.add(Text(i18n.label(lang, "events"), "section", "center"))
+    r.add(
+        Text(
+            f"{i18n.date_line(lang, first)} – {i18n.date_line(lang, last)}",
+            "small",
+            "center",
+            wrap=False,
+        ),
+        Spacer(6),
+        Rule(3),
+        Spacer(10),
+    )
+    table = []
+    for day, events in days:
+        label = f"{i18n.weekday_name(lang, day)[:2]} {day.strftime('%d.%m.')}"
+        table.append((label, _timeline_events(events, day), [e.title for e in events if e.all_day]))
+    r.add(RawImage(render_image.multi_day_calendar(table)))
+    r.add(Spacer(10), Rule(1), Spacer(12), TearLine())
+    return r
+
+
 def custom_receipt(
     title: str,
     groups: list[TaskGroup],
@@ -406,6 +461,39 @@ def sample_agenda(day: date | None = None) -> DailyAgenda:
             )
         ],
     )
+
+
+def sample_calendar_days(day: date | None = None) -> list[tuple[date, list[CalendarEvent]]]:
+    day = day or date(2026, 9, 22)
+    base = sample_agenda(day).events
+    tz = datetime.now().astimezone().tzinfo
+
+    def ev(uid: str, title: str, d: date, h0: int, m0: int, h1: int, m1: int) -> CalendarEvent:
+        s0 = datetime.combine(d, datetime.min.time(), tz).replace(hour=h0, minute=m0)
+        s1 = datetime.combine(d, datetime.min.time(), tz).replace(hour=h1, minute=m1)
+        return CalendarEvent(uid, title, s0, s1, False, "w", "Work")
+
+    d1, d2 = day + timedelta(days=1), day + timedelta(days=2)
+    return [
+        (day, base),
+        (
+            d1,
+            [
+                ev("f1", "Signals and Systems lecture", d1, 10, 0, 11, 30),
+                ev("f2", "Gym", d1, 18, 0, 19, 0),
+                CalendarEvent(
+                    "f3",
+                    "Deadline thesis draft",
+                    datetime.combine(d1, datetime.min.time(), tz),
+                    datetime.combine(d2, datetime.min.time(), tz),
+                    True,
+                    "p",
+                    "Personal",
+                ),
+            ],
+        ),
+        (d2, [ev("g1", "Rick and Morty", d2, 22, 0, 23, 0), ev("g2", "Dentist", d2, 8, 30, 9, 15)]),
+    ]
 
 
 def empty_agenda(day: date | None = None) -> DailyAgenda:

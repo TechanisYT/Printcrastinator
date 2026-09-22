@@ -172,6 +172,39 @@ def sec_dashboard(daemon: Daemon) -> None:
                         ui.notify("sent"),
                     ),
                 ).props("outline")
+    with ui.row().classes("items-end gap-2"):
+        from datetime import date as _date
+        from datetime import timedelta as _td
+
+        cal_from = (
+            ui.input("Calendar from", value=_date.today().isoformat())
+            .props("type=date")
+            .classes("w-44")
+        )
+        cal_to = (
+            ui.input("to", value=(_date.today() + _td(days=2)).isoformat())
+            .props("type=date")
+            .classes("w-44")
+        )
+        ui.button(
+            "Print calendar only",
+            icon="calendar_month",
+            on_click=lambda: _run(
+                daemon.print_calendar(
+                    _date.fromisoformat(cal_from.value),
+                    _date.fromisoformat(cal_to.value) if cal_to.value else None,
+                ),
+                "calendar",
+            ),
+        ).props("outline").tooltip("One day upright; several days rotated, side by side")
+        ui.button(
+            "Preview",
+            icon="visibility",
+            on_click=lambda: img.set_source(
+                f"/api/preview.png?kind=calendar&day={cal_from.value}"
+                f"&day_to={cal_to.value}&t={time.time()}"
+            ),
+        ).props("flat")
     with ui.card().classes("w-full"):
         ui.label("Custom print").classes("text-lg font-bold")
         ui.label("Pick lists or stacks and/or a due range, then print just those tasks.").classes(

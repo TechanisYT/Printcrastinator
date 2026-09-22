@@ -120,6 +120,15 @@ def build_server():
         return _api("POST", "/api/print/day", params={"day": day, "layout_mode": layout})
 
     @srv.tool()
+    def print_calendar(day_from: str, day_to: str | None = None) -> dict:
+        """Print only calendar events: one day upright, a range (max 14 days) rotated with the
+        days side by side. Dates YYYY-MM-DD."""
+        params = {"day_from": day_from}
+        if day_to:
+            params["day_to"] = day_to
+        return _api("POST", "/api/print/calendar", params=params)
+
+    @srv.tool()
     def select_tasks(
         list_ids: list[str] | None = None,
         due_from: str | None = None,

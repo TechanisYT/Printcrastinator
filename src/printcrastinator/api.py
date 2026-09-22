@@ -183,6 +183,15 @@ def make_router(daemon: Daemon) -> APIRouter:
         except PrinterError as exc:
             raise HTTPException(503, str(exc)) from exc
 
+    @r.post("/print/calendar")
+    async def print_calendar(day_from: str, day_to: str = ""):
+        try:
+            return await daemon.print_calendar(
+                date.fromisoformat(day_from), date.fromisoformat(day_to) if day_to else None
+            )
+        except PrinterError as exc:
+            raise HTTPException(503, str(exc)) from exc
+
     @r.post("/tasks/select")
     async def tasks_select(body: Selection):
         items = daemon.select_tasks(**_selection_filters(body))
@@ -196,11 +205,15 @@ def make_router(daemon: Daemon) -> APIRouter:
             raise HTTPException(503, str(exc)) from exc
 
     @r.get("/preview.png")
-    async def preview(kind: str = "live", layout_mode: str = "", day: str = ""):
+    async def preview(kind: str = "live", layout_mode: str = "", day: str = "", day_to: str = ""):
         lang = daemon.cfg.ui.language
         mode = layout_mode or daemon.cfg.daily.layout
         opt = daemon.layout_options()
-        if kind == "sample":
+        if kind == "calendar":
+            d0 = date.fromisoformat(day) if day else date.today()
+            d1 = date.fromisoformat(day_to) if day_to else d0
+            rc = layout.calendar_receipt(await daemon.calendar_days(d0, d1), lang, opt)
+        elif kind == "sample":
             rc = layout.daily_receipt(layout.sample_agenda(), lang, mode, opt)
         elif kind == "empty":
             rc = layout.daily_receipt(layout.empty_agenda(), lang, "list", opt)

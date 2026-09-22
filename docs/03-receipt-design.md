@@ -36,6 +36,16 @@ Overlapping events are laid out side by side (greedy column assignment, at most 
 event widens into free columns to its right. Events that would need a fourth column are listed
 as plain lines under the bar. All-day events are listed above the bar.
 
+### Calendar-only receipts
+
+`calendar_receipt(days)`: for one day the header plus the EVENTS timeline; for 2–14 days a
+table drawn landscape (hour axis vertical, days as columns of 230 px, `tiny` 16 px font for
+event titles, all-day events as bullet lines under the day header) and rotated 90° onto the
+paper, so the days run along the paper and the tear-off is read turned sideways. The hour
+range spans the earliest to the latest event across all days (minimum 6 h). No task sections.
+Reachable via "Print calendar only" on the Dashboard, `/api/print/calendar`, the AI tool
+`print_calendar` and MCP.
+
 ### Custom receipts
 
 `custom_receipt(title, groups, day)`: a title header with the date, then the selected tasks

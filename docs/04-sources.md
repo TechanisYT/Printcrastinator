@@ -50,8 +50,12 @@ endpoint answers 200 without moving (Deck 1.14). Events: `save_event` into a cho
 - Same CalDAV root; every collection supporting VEVENT is a calendar.
 - Each calendar can be toggled in the web UI → `calendar_prefs(calendar_id, enabled)`; new
   calendars default to enabled.
-- Events are expanded server-side with a time-range REPORT for today (local midnight to
-  midnight) so recurrences are handled by Nextcloud. All-day events are shown first.
+- Events are fetched with a time-range REPORT and `expand=True` so recurrences are handled by
+  Nextcloud. The window is padded to day-1 .. day+2 because a window ending exactly at the
+  next midnight returns nothing from Nextcloud (observed with caldav 3.3); the parser keeps
+  only events overlapping the requested day. All-day events are shown first.
+- Any write (task complete/edit/create, event create) refreshes the sources before returning,
+  so a print requested in the same AI round already sees the change.
 - ctag caching as for tasks.
 
 ## Suppression ("hide from prints")

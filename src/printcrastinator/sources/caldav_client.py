@@ -141,8 +141,10 @@ class CalDavClient:
         if cached is not None:
             return cached
         tz = datetime.now().astimezone().tzinfo
-        start = datetime.combine(day, datetime.min.time(), tz)
-        end = start + timedelta(days=1)
+        # Nextcloud/caldav returns nothing for a window that ends exactly at the next
+        # midnight; query a padded window and let the parser keep only `day`.
+        start = datetime.combine(day - timedelta(days=1), datetime.min.time(), tz)
+        end = datetime.combine(day + timedelta(days=2), datetime.min.time(), tz)
         found = self._calendar(col).search(start=start, end=end, event=True, expand=True)
         data = [e.data for e in found]
         self._store(key, ctag, data)

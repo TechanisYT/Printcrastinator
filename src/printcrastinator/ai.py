@@ -117,6 +117,22 @@ TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "print_calendar",
+            "description": (
+                "Print ONLY calendar events, no tasks: one day as an upright timeline, or a "
+                "range of days (max 14) as a rotated table with the days side by side. "
+                "day_from/day_to: YYYY-MM-DD; omit day_to for a single day."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {"day_from": {"type": "string"}, "day_to": {"type": "string"}},
+                "required": ["day_from"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "print_tasks",
             "description": (
                 "Print a custom receipt with a title and a filtered set of open tasks, grouped by "
@@ -302,6 +318,10 @@ GUIDELINES = (
     "- 'tasks from list <L> due in the next week': list_ids=['<L id>'], due_from=today, "
     "due_to=today+7, include_no_due=false.\n"
     "- 'print what is overdue in <L>': list_ids, overdue_only=true.\n"
+    "- 'print the calendar / events / plan / schedule (for today, tomorrow, the next 3 days, "
+    "next week)': print_calendar ONLY; never print_receipt or print_tasks for that. 'next N "
+    "days' = today through today+N-1; 'next week' = tomorrow through tomorrow+6.\n"
+    "- After create_event or task changes the data is already refreshed; print right away.\n"
     "- 'print (the) tasks for/of/from <name>': print_tasks with list_ids=['<name>'] and NO other "
     "filter. Names are accepted: a task list name, a Deck board name (all its stacks) or "
     "'Board · Stack'. If a task list and a board share the name, both are included.\n"
@@ -449,6 +469,10 @@ class Assistant:
                     layout_mode=args.get("layout") or None,
                 )
                 return json.dumps(r)
+            if name == "print_calendar":
+                d0 = date.fromisoformat(args["day_from"])
+                d1 = date.fromisoformat(args["day_to"]) if args.get("day_to") else None
+                return json.dumps(await d.print_calendar(d0, d1))
             if name in ("print_tasks", "preview_tasks"):
                 f = {k: v for k, v in args.items() if k != "title" and v not in (None, "", [])}
                 for k in ("due_from", "due_to"):

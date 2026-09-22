@@ -75,6 +75,13 @@ class Timeline:
 
 
 @dataclass(frozen=True)
+class RawImage:
+    """A pre-rendered 1-bit PIL image (e.g. the rotated multi-day calendar)."""
+
+    image: object  # PIL.Image.Image, kept untyped to keep the model PIL-free
+
+
+@dataclass(frozen=True)
 class Picture:
     path: str
     max_height: int = 160
@@ -92,6 +99,7 @@ Block = (
     | TearLine
     | Picture
     | Timeline
+    | RawImage
 )
 
 

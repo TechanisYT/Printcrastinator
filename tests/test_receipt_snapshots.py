@@ -22,6 +22,8 @@ def _cases():
         "empty": layout.daily_receipt(layout.empty_agenda(DAY), "en"),
         "slip": layout.slip_receipt(layout.sample_slip_items(DAY), NOW, "en"),
         "sample_cards": layout.daily_receipt(layout.sample_agenda(DAY), "en", "cards"),
+        "calendar_1day": layout.calendar_receipt([(DAY, layout.sample_agenda(DAY).events)], "en"),
+        "calendar_3days": layout.calendar_receipt(layout.sample_calendar_days(DAY), "en"),
     }
 
 

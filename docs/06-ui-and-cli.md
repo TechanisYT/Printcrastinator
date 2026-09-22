@@ -21,10 +21,11 @@ by default, toggle in Settings.
 |---|---|
 | `GET /api/status` | daemon health, printer state, counts, today's print |
 | `GET /api/agenda?refresh=&day=` | today's (or any day's) agenda |
-| `GET /api/preview.png?kind=live\|sample\|empty\|slip&layout_mode=` | rendered receipt |
+| `GET /api/preview.png?kind=live\|sample\|empty\|slip\|calendar&layout_mode=&day=&day_to=` | rendered receipt |
 | `POST /api/print/daily?force=&layout_mode=` | daily gate / forced print (silent) |
 | `POST /api/print/day?day=&layout_mode=` | the daily receipt for any date, no gate |
 | `POST /api/print/sample` | the sample receipt |
+| `POST /api/print/calendar?day_from=&day_to=` | events only; one day upright, a range rotated side by side |
 | `POST /api/tasks/select` · `POST /api/print/selection` | filter open tasks (list ids, due range, tags, text) / print them under a title |
 | `POST /api/print/test?sweep=` · `POST /api/printer/feed` · `POST /api/printer/action?action=` | printer actions |
 | `POST /api/notify` · `POST /api/notify/test` · `POST /api/test/cycle` | screen output tests, full morning cycle |

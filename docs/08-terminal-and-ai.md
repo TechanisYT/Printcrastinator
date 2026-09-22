@@ -29,7 +29,8 @@ Config section `ai`: `enabled`, `url` (default `http://localhost:11434`), `model
   users as system context. Tools: `complete_task`, `reopen_task`, `edit_task`, `create_task`
   (title, notes, due, start, priority, tags/labels, location, assignees, stack), `create_event`
   (in a chosen calendar, all-day or timed), `get_settings`, `set_setting`, `print_receipt`
-  (any day), `print_tasks` / `preview_tasks` (filtered custom receipts: list or stack ids, due
+  (any day), `print_calendar` (events only, one day or a rotated multi-day table),
+  `print_tasks` / `preview_tasks` (filtered custom receipts: list or stack ids, due
   range, overdue only, tags, text), `printer_action`. The system prompt carries guidelines for
   common phrasings ("print the X list under deck Y", "tasks from list L due next week") and
   tells the model to preview before printing when a filter is unclear. Tool calls are executed by the daemon and the loop continues for up to
@@ -57,6 +58,7 @@ daemon's HTTP API:
 | `get_settings` / `set_setting(section, key, value)` | read / change configuration |
 | `printer_action(action)` | test_print, density_sweep, feed, test_notification, full_cycle, poll |
 | `print_today(force?, layout?)` / `print_day(day, layout?)` | print the daily receipt for today / any day |
+| `print_calendar(day_from, day_to?)` | events only, single day or side-by-side range |
 | `select_tasks(…)` / `print_tasks(title, …)` | filter open tasks / print them as a custom receipt |
 | `daemon_status` | health |
 
