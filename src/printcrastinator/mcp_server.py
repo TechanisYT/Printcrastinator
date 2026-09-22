@@ -198,6 +198,16 @@ def build_server():
         return _api("POST", "/api/printer/action", params={"action": action})
 
     @srv.tool()
+    def find_contacts(query: str) -> dict:
+        """Nextcloud contacts whose name contains query, with current birthday and href."""
+        return _api("GET", "/api/contacts", params={"q": query})
+
+    @srv.tool()
+    def set_contact_birthday(href: str, birthday: str | None = None) -> dict:
+        """Set a contact's birthday (YYYY-MM-DD, --MM-DD without year) or remove it (null)."""
+        return _api("POST", "/api/contacts/birthday", json={"href": href, "birthday": birthday})
+
+    @srv.tool()
     def birthdays(days: int = 14) -> dict:
         """Birthdays of the next N days from the contacts birthday calendar."""
         return _api("GET", "/api/birthdays", params={"days": days})

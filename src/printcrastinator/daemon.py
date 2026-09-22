@@ -780,6 +780,22 @@ class Daemon:
             await self._refresh_sources(date.today())
             self.last_poll_at = time.time()
 
+    async def find_contacts(self, query: str) -> list[dict[str, Any]]:
+        from .sources.contacts import ContactsClient
+
+        found = await asyncio.to_thread(ContactsClient(self.cfg.nextcloud).find, query)
+        return [c.to_dict() for c in found]
+
+    async def set_contact_birthday(self, href: str, birthday: str | None) -> dict[str, Any]:
+        from .sources.contacts import ContactsClient
+
+        c = await asyncio.to_thread(ContactsClient(self.cfg.nextcloud).set_birthday, href, birthday)
+        self.db.log("contact", True, f"birthday {birthday or 'removed'}: {c.name}")
+        # Nextcloud regenerates the birthday calendar on card changes; re-fetch shortly after.
+        await asyncio.sleep(2)
+        await self._refresh_after_write()
+        return c.to_dict()
+
     async def birthdays_for(self, days: int) -> list[Birthday]:
         today = date.today()
         cal = CalDavClient(self.cfg.nextcloud, self.db)

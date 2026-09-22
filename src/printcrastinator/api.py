@@ -92,6 +92,11 @@ class Ticket(BaseModel):
     note: str = ""
 
 
+class ContactBirthday(BaseModel):
+    href: str  # from /api/contacts
+    birthday: str | None = None  # YYYY-MM-DD, --MM-DD (no year) or null to remove
+
+
 class ChatBody(BaseModel):
     messages: list[dict[str, str]]
 
@@ -329,6 +334,20 @@ def make_router(daemon: Daemon) -> APIRouter:
             buf, format="PNG"
         )
         return Response(buf.getvalue(), media_type="image/png")
+
+    @r.get("/contacts")
+    async def contacts_find(q: str):
+        try:
+            return {"contacts": await daemon.find_contacts(q)}
+        except Exception as exc:
+            raise HTTPException(502, f"contacts lookup failed: {exc}") from exc
+
+    @r.post("/contacts/birthday")
+    async def contacts_birthday(body: ContactBirthday):
+        try:
+            return await daemon.set_contact_birthday(body.href, body.birthday or None)
+        except Exception as exc:
+            raise HTTPException(502, f"contact update failed: {exc}") from exc
 
     @r.get("/birthdays")
     async def birthdays(days: int = 14):

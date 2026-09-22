@@ -72,6 +72,29 @@ TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "contacts",
+            "description": (
+                "Nextcloud contacts. action 'find': contacts whose name contains query, with "
+                "their current birthday and href. action 'set_birthday': set (or with empty "
+                "birthday remove) the birthday of the contact with that href; birthday "
+                "YYYY-MM-DD, or --MM-DD when the year is unknown. Always find first, and if "
+                "several contacts match, ask which one."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string"},
+                    "query": {"type": "string"},
+                    "href": {"type": "string"},
+                    "birthday": {"type": "string"},
+                },
+                "required": ["action"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "birthdays",
             "description": (
                 "Birthdays of the next N days from the contacts birthday calendar. "
@@ -454,6 +477,8 @@ GUIDELINES = (
     "frame, overdue items or a keyword. 'print the tasks for X' means ALL open tasks of X.\n"
     "- When unsure what a filter matches, call preview_tasks first, then print_tasks.\n"
     "- Report the 'count' the tool returns; do not count items yourself.\n"
+    "- 'set Anna's birthday to 21 May 1990' -> contacts(find, query='Anna'), then "
+    "contacts(set_birthday, href, birthday='1990-05-21'); unknown year: '--05-21'.\n"
     "- 'print/show birthdays for the next 2 weeks' -> birthdays(action, days=14). "
     "'How far ahead are birthdays shown' is the setting daily.birthdays_lookahead.\n"
     "- Custom lists: 'add milk and eggs to the shopping list' -> lists(add, title='shopping "
@@ -603,6 +628,16 @@ class Assistant:
             if name == "delete_event":
                 await d.delete_event(args["uid"])
                 return f"event deleted: {args['uid'][:8]}"
+            if name == "contacts":
+                if args.get("action") == "find":
+                    found = await d.find_contacts(args.get("query", ""))
+                    return json.dumps({"count": len(found), "contacts": found})
+                if args.get("action") == "set_birthday":
+                    if not args.get("href"):
+                        return "error: href required (use find first)"
+                    c = await d.set_contact_birthday(args["href"], args.get("birthday") or None)
+                    return f"birthday of {c['name']} set to {c['birthday'] or 'none'}"
+                return "unknown contacts action"
             if name == "birthdays":
                 days = int(args.get("days") or d.cfg.daily.birthdays_lookahead)
                 if args.get("action") == "print":
