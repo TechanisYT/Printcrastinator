@@ -16,19 +16,22 @@ def _cmd_preview(args: argparse.Namespace) -> int:
     from .render import image
 
     cfg = load_config()
+    from . import logos
+
     lang = args.lang or cfg.ui.language
     mode = args.layout or cfg.daily.layout
+    opt = logos.options(cfg.logo, cfg.daily.quote)
     day = date.fromisoformat(args.day) if args.day else None
     if args.kind == "slip":
         receipt = layout.slip_receipt(layout.sample_slip_items(day), datetime.now(), lang)
     elif args.kind == "empty":
-        receipt = layout.daily_receipt(layout.empty_agenda(day), lang, mode)
+        receipt = layout.daily_receipt(layout.empty_agenda(day), lang, mode, opt)
     elif args.kind == "live":
         from .client import get_agenda_or_build
 
-        receipt = layout.daily_receipt(get_agenda_or_build(cfg), lang, mode)
+        receipt = layout.daily_receipt(get_agenda_or_build(cfg), lang, mode, opt)
     else:
-        receipt = layout.daily_receipt(layout.sample_agenda(day), lang, mode)
+        receipt = layout.daily_receipt(layout.sample_agenda(day), lang, mode, opt)
     img = image.render(receipt)
     out = Path(args.path)
     img.save(out)

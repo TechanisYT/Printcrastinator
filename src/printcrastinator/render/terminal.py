@@ -8,6 +8,7 @@ from rich.text import Text as RText
 from ..receipt.model import (
     CheckItem,
     EventLine,
+    Picture,
     Receipt,
     Rule,
     SectionHeader,
@@ -49,3 +50,8 @@ def render(receipt: Receipt, console: Console | None = None) -> None:
                     console.print(RText(f"    {m}", style="dim"))
             case TearLine():
                 console.print("✂ " + "- " * ((COLS - 2) // 2), style="dim")
+            case Picture(path=pth):
+                console.print(
+                    RText(f"[logo: {pth.rsplit('/', 1)[-1]}]", style="dim", justify="center"),
+                    width=COLS,
+                )

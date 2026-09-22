@@ -11,13 +11,14 @@ from datetime import date, datetime
 from typing import Any
 
 from . import agenda as agenda_mod
+from . import logos
 from .config import Config, load_config
 from .db import Database
 from .models import CalendarEvent, DailyAgenda, TaskItem
 from .printer.escpos_out import Printer, PrinterError
 from .receipt import layout
 from .render import image as render_image
-from .render import notify
+from .render import notify, screen
 from .sources.caldav_client import CalDavClient, Collection
 from .sources.deck import DeckClient, DeckStack
 
@@ -209,9 +210,25 @@ class Daemon:
     def show_on_screen(self, ag: DailyAgenda) -> None:
         if self.cfg.screen.notify:
             notify.send(ag, self.cfg.ui.language)
+        if self.cfg.screen.terminal:
+            screen.open_terminal()
 
     def test_notification(self) -> str:
-        return notify.send_test()
+        parts = [notify.send_test()]
+        if self.cfg.screen.terminal:
+            parts.append(screen.open_terminal())
+        return " · ".join(parts)
+
+    def layout_options(self) -> layout.Options:
+        return logos.options(self.cfg.logo, self.cfg.daily.quote)
+
+    async def test_full_cycle(self) -> dict[str, Any]:
+        """Simulate a fresh morning: forget today's print, fetch, print, notify, open window."""
+        self.db.release_daily(date.today())
+        async with self._lock:
+            await self._refresh_sources(date.today())
+            self.last_poll_at = time.time()
+        return await self.maybe_print_daily(force=True, reason="test-cycle")
 
     async def maybe_print_daily(
         self, force: bool = False, reason: str = "poll", layout_mode: str | None = None

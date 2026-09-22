@@ -23,6 +23,15 @@ def state_dir() -> Path:
     return base / APP_NAME
 
 
+def data_dir() -> Path:
+    base = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
+    return base / APP_NAME
+
+
+def logo_dir() -> Path:
+    return data_dir() / "logos"
+
+
 def config_path() -> Path:
     return Path(os.environ.get("PRINTCRASTINATOR_CONFIG", config_dir() / "config.toml"))
 
@@ -73,6 +82,8 @@ class DailyConfig:
     # Overdue filters, 0 = unlimited. Both can be combined.
     overdue_max_days: int = 0
     overdue_max_count: int = 0
+    # Rotating motivational quote in the footer.
+    quote: bool = False
 
 
 @dataclass
@@ -80,6 +91,16 @@ class SlipConfig:
     enabled_tasks: bool = True
     enabled_deck: bool = True
     debounce_seconds: int = 60
+
+
+@dataclass
+class LogoConfig:
+    # "off", "random" (one of the uploaded images per print) or "fixed" (logo.file)
+    mode: str = "off"
+    file: str = ""
+    max_height: int = 160
+    # Floyd-Steinberg dithering for photos/greyscale logos; off = plain threshold
+    dither: bool = False
 
 
 @dataclass
@@ -110,6 +131,7 @@ class Config:
     server: ServerConfig = field(default_factory=ServerConfig)
     screen: ScreenConfig = field(default_factory=ScreenConfig)
     ui: UiConfig = field(default_factory=UiConfig)
+    logo: LogoConfig = field(default_factory=LogoConfig)
 
     def to_dict(self) -> dict[str, Any]:
         return _asdict(self)

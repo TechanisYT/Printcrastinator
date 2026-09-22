@@ -12,6 +12,7 @@ from ..receipt.model import (
     Block,
     CheckItem,
     EventLine,
+    Picture,
     Receipt,
     Rule,
     SectionHeader,
@@ -181,6 +182,31 @@ def _check(c: _Canvas, b: CheckItem) -> None:
     c.y += ITEM_GAP
 
 
+def _picture(c: _Canvas, b: Picture) -> None:
+    try:
+        src = Image.open(b.path)
+    except Exception:
+        return
+    if src.mode in ("RGBA", "LA", "P"):
+        bg = Image.new("RGBA", src.size, (255, 255, 255, 255))
+        bg.alpha_composite(src.convert("RGBA"))
+        src = bg
+    src = src.convert("L")
+    max_w = WIDTH - 2 * MARGIN
+    scale = min(max_w / src.width, b.max_height / src.height, 1.0)
+    if scale < 1.0:
+        src = src.resize(
+            (max(1, int(src.width * scale)), max(1, int(src.height * scale))), Image.LANCZOS
+        )
+    if b.dither:
+        mono = src.convert("1")  # Floyd-Steinberg
+    else:
+        mono = src.point(lambda p: 255 if p > THRESHOLD else 0).convert("1")
+    c.ensure(mono.height)
+    c.img.paste(mono.convert("L"), ((WIDTH - mono.width) // 2, c.y))
+    c.y += mono.height
+
+
 def _tear(c: _Canvas) -> None:
     c.ensure(12)
     y = c.y + 4
@@ -210,6 +236,8 @@ def _render_block(c: _Canvas, b: Block) -> None:
             _check(c, b)
         case TearLine():
             _tear(c)
+        case Picture():
+            _picture(c, b)
 
 
 def render(receipt: Receipt, top_pad: int = 8, bottom_pad: int = 8) -> Image.Image:

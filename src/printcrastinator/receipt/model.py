@@ -51,7 +51,14 @@ class TearLine:
     pass
 
 
-Block = Rule | Spacer | Text | SectionHeader | EventLine | CheckItem | TearLine
+@dataclass(frozen=True)
+class Picture:
+    path: str
+    max_height: int = 160
+    dither: bool = False
+
+
+Block = Rule | Spacer | Text | SectionHeader | EventLine | CheckItem | TearLine | Picture
 
 
 @dataclass

@@ -38,7 +38,8 @@ sudo udevadm control --reload
 sudo udevadm trigger --subsystem-match=usbmisc
 
 install -Dm644 "$HERE/packaging/printcrastinator.service" "$HOME/.config/systemd/user/printcrastinator.service"
-install -Dm644 "$HERE/packaging/printcrastinator-show.desktop" "$HOME/.config/autostart/printcrastinator-show.desktop"
+# optional: window at every login (the daemon already opens it when the daily check fires)
+# install -Dm644 "$HERE/packaging/printcrastinator-show.desktop" "$HOME/.config/autostart/printcrastinator-show.desktop"
 systemctl --user daemon-reload
 systemctl --user enable --now printcrastinator.service
 

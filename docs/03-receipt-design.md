@@ -92,3 +92,13 @@ Feeding uses plain line feeds (about 4 mm each) because ESC J is ignored by some
 `printcrastinator preview out.png [--sample | --empty | --slip]` writes the image without a
 printer. Snapshot tests in `tests/snapshots/` pin the PNGs for the sample agenda, the empty day
 and a slip; update them deliberately with `pytest --snapshot-update`.
+
+## Logo and layouts
+
+- Optional logo at the top: images uploaded in Settings are stored in
+  `~/.local/share/printcrastinator/logos/`. Mode `off`, `random` (one per print) or `fixed`.
+  Scaled to fit 352 px wide and `logo.max_height`, thresholded (or dithered when `logo.dither`).
+- Layout `list` (continuous checklist) or `cards` (each task in its own block between cut
+  lines, for scissors). Dashboard has a one-off "Print as cards" button.
+- Footer: only a "+N older overdue not shown" line when overdue filters apply, and the quote
+  if `daily.quote` is on (default off).

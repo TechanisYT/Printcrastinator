@@ -30,11 +30,16 @@ WantedBy=default.target
 No `network-online.target` (does not exist in the user manager); the poller retries with backoff.
 Enable: `systemctl --user enable --now printcrastinator.service`.
 
-## Terminal window at login (`packaging/printcrastinator-show.desktop`)
+## Terminal window and notification
 
-Copied to `~/.config/autostart/`. Runs `alacritty --title Printcrastinator -e uv run --project %h/Projects/Printcrastinator printcrastinator show`.
-The desktop notification is sent by the daemon itself when the daily check fires. Either can be
-disabled in Settings (`screen.terminal`, `screen.notify`).
+Both are triggered by the daemon itself whenever the daily check fires (daemon start, poll,
+resume, unlock): it sends the notification and launches
+`alacritty --title Printcrastinator -e python -m printcrastinator show`. The user service has
+`DISPLAY`/`WAYLAND_DISPLAY` because KDE imports them into the systemd user environment.
+Either can be disabled in Settings (`screen.terminal`, `screen.notify`).
+
+`packaging/printcrastinator-show.desktop` is an optional autostart entry that opens the window
+at every login regardless of whether today was already printed; not installed by default.
 
 ## Install checklist
 

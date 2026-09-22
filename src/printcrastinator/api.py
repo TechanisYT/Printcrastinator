@@ -29,14 +29,15 @@ def make_router(daemon: Daemon) -> APIRouter:
     async def preview(kind: str = "live", layout_mode: str = ""):
         lang = daemon.cfg.ui.language
         mode = layout_mode or daemon.cfg.daily.layout
+        opt = daemon.layout_options()
         if kind == "sample":
-            rc = layout.daily_receipt(layout.sample_agenda(), lang, mode)
+            rc = layout.daily_receipt(layout.sample_agenda(), lang, mode, opt)
         elif kind == "empty":
-            rc = layout.daily_receipt(layout.empty_agenda(), lang)
+            rc = layout.daily_receipt(layout.empty_agenda(), lang, "list", opt)
         elif kind == "slip":
             rc = layout.slip_receipt(layout.sample_slip_items(), datetime.now(), lang)
         else:
-            rc = layout.daily_receipt(await daemon.agenda(), lang, mode)
+            rc = layout.daily_receipt(await daemon.agenda(), lang, mode, opt)
         buf = BytesIO()
         render_image.render(rc).save(buf, format="PNG")
         return Response(buf.getvalue(), media_type="image/png")
@@ -50,6 +51,10 @@ def make_router(daemon: Daemon) -> APIRouter:
     @r.post("/notify/test")
     async def notify_test():
         return {"result": daemon.test_notification()}
+
+    @r.post("/test/cycle")
+    async def test_cycle():
+        return await daemon.test_full_cycle()
 
     @r.post("/print/test")
     async def print_test(sweep: bool = False):

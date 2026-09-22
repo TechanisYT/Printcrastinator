@@ -2,11 +2,30 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
 from ..models import CalendarEvent, DailyAgenda, TaskGroup, TaskItem
 from . import i18n
-from .model import CheckItem, EventLine, Receipt, Rule, SectionHeader, Spacer, TearLine, Text
+from .model import (
+    CheckItem,
+    EventLine,
+    Picture,
+    Receipt,
+    Rule,
+    SectionHeader,
+    Spacer,
+    TearLine,
+    Text,
+)
+
+
+@dataclass
+class Options:
+    logo: str = ""  # path to an image file, empty = none
+    logo_max_height: int = 160
+    logo_dither: bool = False
+    quote: bool = False
 
 
 def _event_time(ev: CalendarEvent, lang: str) -> str:
@@ -17,7 +36,9 @@ def _event_time(ev: CalendarEvent, lang: str) -> str:
     return f"{start}–{end}" if end != start else start
 
 
-def _header(r: Receipt, day: date, lang: str) -> None:
+def _header(r: Receipt, day: date, lang: str, opt: Options) -> None:
+    if opt.logo:
+        r.add(Picture(opt.logo, opt.logo_max_height, opt.logo_dither), Spacer(10))
     r.add(
         Rule(3),
         Spacer(10),
@@ -49,31 +70,27 @@ def _task_marker(t: TaskItem, day: date, lang: str) -> str:
     return ""
 
 
-def _footer(r: Receipt, agenda: DailyAgenda, lang: str) -> None:
-    parts = []
-    if agenda.overdue:
-        parts.append(f"{len(agenda.overdue)} {i18n.label(lang, 'summary_overdue')}")
-    if agenda.due_today:
-        parts.append(f"{len(agenda.due_today)} {i18n.label(lang, 'summary_today')}")
-    if agenda.always_items:
-        parts.append(f"{len(agenda.always_items)} {i18n.label(lang, 'summary_always')}")
+def _footer(r: Receipt, agenda: DailyAgenda, lang: str, opt: Options) -> None:
     r.add(Spacer(6), Rule(1), Spacer(8))
-    if parts:
-        r.add(Text(" · ".join(parts), "small", "center", wrap=False))
     if agenda.overdue_hidden:
         r.add(Text(i18n.label(lang, "older_overdue", n=agenda.overdue_hidden), "small", "center"))
-    r.add(Text(f"“{i18n.quote_for(agenda.day)}”", "small", "center"), Spacer(16), TearLine())
+    if opt.quote:
+        r.add(Text(f"“{i18n.quote_for(agenda.day)}”", "small", "center"))
+    r.add(Spacer(12), TearLine())
 
 
-def daily_receipt(agenda: DailyAgenda, lang: str = "en", layout: str = "list") -> Receipt:
+def daily_receipt(
+    agenda: DailyAgenda, lang: str = "en", layout: str = "list", opt: Options | None = None
+) -> Receipt:
+    opt = opt or Options()
     if layout == "cards":
-        return cards_receipt(agenda, lang)
+        return cards_receipt(agenda, lang, opt)
     r = Receipt()
-    _header(r, agenda.day, lang)
+    _header(r, agenda.day, lang, opt)
     _events(r, agenda, lang)
     if not agenda.has_tasks:
         r.add(Text(i18n.label(lang, "no_tasks"), "body", "center"), Spacer(8))
-        _footer(r, agenda, lang)
+        _footer(r, agenda, lang, opt)
         return r
     if agenda.overdue:
         r.add(SectionHeader(i18n.label(lang, "overdue"), hint=str(len(agenda.overdue))))
@@ -92,18 +109,19 @@ def daily_receipt(agenda: DailyAgenda, lang: str = "en", layout: str = "list") -
         for t in group.items:
             r.add(CheckItem(t.title, right=_task_marker(t, agenda.day, lang)))
         r.add(Spacer(14))
-    _footer(r, agenda, lang)
+    _footer(r, agenda, lang, opt)
     return r
 
 
-def cards_receipt(agenda: DailyAgenda, lang: str = "en") -> Receipt:
+def cards_receipt(agenda: DailyAgenda, lang: str = "en", opt: Options | None = None) -> Receipt:
     """Every task in its own block with cut lines between, for scissors."""
+    opt = opt or Options()
     r = Receipt()
-    _header(r, agenda.day, lang)
+    _header(r, agenda.day, lang, opt)
     _events(r, agenda, lang)
     if not agenda.has_tasks:
         r.add(Text(i18n.label(lang, "no_tasks"), "body", "center"), Spacer(8))
-        _footer(r, agenda, lang)
+        _footer(r, agenda, lang, opt)
         return r
     day = agenda.day
 
@@ -123,7 +141,7 @@ def cards_receipt(agenda: DailyAgenda, lang: str = "en") -> Receipt:
         for t in g.items:
             card(t, g.title)
     r.add(Spacer(10), TearLine(), Spacer(6))
-    _footer(r, agenda, lang)
+    _footer(r, agenda, lang, opt)
     return r
 
 

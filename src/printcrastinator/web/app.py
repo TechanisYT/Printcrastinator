@@ -11,6 +11,7 @@ from datetime import datetime
 
 from nicegui import app, ui
 
+from .. import logos
 from ..api import make_router
 from ..config import Config, load_config, save_config
 from ..daemon import Daemon
@@ -418,6 +419,56 @@ def sec_settings(daemon: Daemon, dark: ui.dark_mode) -> None:
         od_count = ui.number(
             "Max overdue tasks", value=cfg.daily.overdue_max_count, min=0, max=500
         ).tooltip("Keeps the most recently due ones; a '+N older' line shows the rest")
+        quote_sw = ui.switch("Motivational quote in the footer", value=cfg.daily.quote)
+    with ui.card().classes("w-full"):
+        ui.label("Logo").classes("font-bold")
+        ui.label(
+            "Upload one or more images. They are printed centred at the top of the receipt, "
+            "converted to black and white."
+        ).classes("text-sm opacity-70")
+        logo_mode = ui.select(
+            {"off": "No logo", "random": "Random image per print", "fixed": "Always this image"},
+            value=cfg.logo.mode,
+            label="Mode",
+        ).classes("w-72")
+        logo_file = ui.select(
+            [p.name for p in logos.list_logos()], value=cfg.logo.file or None, label="Image"
+        ).classes("w-72")
+        logo_h = ui.number(
+            "Max height (px, 8 px = 1 mm)", value=cfg.logo.max_height, min=16, max=600
+        )
+        logo_dither = ui.switch("Dither (for photos / greyscale)", value=cfg.logo.dither)
+        gallery = ui.row().classes("gap-3 flex-wrap")
+
+        def refresh_gallery():
+            gallery.clear()
+            names = [p.name for p in logos.list_logos()]
+            logo_file.set_options(
+                names, value=logo_file.value if logo_file.value in names else None
+            )
+            with gallery:
+                for p in logos.list_logos():
+                    with ui.column().classes("items-center gap-1"):
+                        ui.image(str(p)).classes("w-24 h-24 object-contain bg-white border")
+                        ui.label(p.name).classes("text-xs")
+                        ui.button(
+                            icon="delete",
+                            on_click=lambda p=p: (logos.delete_logo(p.name), refresh_gallery()),
+                        ).props("flat dense")
+
+        async def on_upload(e):
+            content = await e.file.read()
+            try:
+                logos.save_logo(e.file.name, content)
+                ui.notify(f"saved {e.file.name}", type="positive")
+            except ValueError as exc:
+                ui.notify(str(exc), type="negative")
+            refresh_gallery()
+
+        ui.upload(on_upload=on_upload, auto_upload=True, multiple=True, label="Add images").props(
+            "accept=image/*"
+        ).classes("w-72")
+        refresh_gallery()
     with ui.card().classes("w-full"):
         ui.label("New-task slips").classes("font-bold")
         s_tasks = ui.switch("Slips for Nextcloud Tasks", value=cfg.slips.enabled_tasks)
@@ -437,11 +488,19 @@ def sec_settings(daemon: Daemon, dark: ui.dark_mode) -> None:
         dark_sw = ui.switch(
             "Dark mode", value=cfg.ui.dark, on_change=lambda e: dark.set_value(bool(e.value))
         )
-        ui.button(
-            "Test notification",
-            icon="notifications_active",
-            on_click=lambda: ui.notify(daemon.test_notification(), type="info"),
-        ).props("outline")
+        with ui.row():
+            ui.button(
+                "Test notification + window",
+                icon="notifications_active",
+                on_click=lambda: ui.notify(daemon.test_notification(), type="info"),
+            ).props("outline")
+            ui.button(
+                "Test full morning cycle",
+                icon="wb_sunny",
+                on_click=lambda: _run(daemon.test_full_cycle(), "cycle"),
+            ).props("outline").tooltip(
+                "Forgets today's print, fetches from Nextcloud, prints, notifies, opens the window"
+            )
 
     def save():
         cfg.nextcloud = replace(
@@ -457,6 +516,14 @@ def sec_settings(daemon: Daemon, dark: ui.dark_mode) -> None:
             layout=layout_sel.value,
             overdue_max_days=int(od_days.value),
             overdue_max_count=int(od_count.value),
+            quote=bool(quote_sw.value),
+        )
+        cfg.logo = replace(
+            cfg.logo,
+            mode=logo_mode.value,
+            file=logo_file.value or "",
+            max_height=int(logo_h.value),
+            dither=bool(logo_dither.value),
         )
         cfg.ui = replace(cfg.ui, language=lang.value, dark=bool(dark_sw.value))
         cfg.slips = replace(
