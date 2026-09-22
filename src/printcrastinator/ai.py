@@ -122,7 +122,8 @@ TOOLS: list[dict[str, Any]] = [
                 "Print a custom receipt with a title and a filtered set of open tasks, grouped by "
                 "list. Filters combine. list_ids: task list ids or names, Deck board ids or names "
                 "(all stacks), or 'board/stack' ids or 'Board · Stack' names. Use only list_ids "
-                "unless the user asked for a time frame. due_from/due_to: YYYY-MM-DD. include_no_due: "
+                "unless the user asked for a time frame. due_from/due_to: YYYY-MM-DD. "
+                "include_no_due: "
                 "keep tasks without a due date (default true; set false for 'due in the next N "
                 "days'). overdue_only. tags: any-of. text: substring in title/notes."
             ),
