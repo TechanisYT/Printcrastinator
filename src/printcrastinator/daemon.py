@@ -27,6 +27,19 @@ BACKOFF_MIN = 5
 BACKOFF_MAX = 300
 
 
+def _retry(fn, attempts: int = 2, delay: float = 2.0):
+    """Call fn, retrying once on failure; returns the result or the last exception."""
+    last: BaseException | None = None
+    for i in range(attempts):
+        try:
+            return fn()
+        except Exception as exc:  # noqa: BLE001
+            last = exc
+            if i + 1 < attempts:
+                time.sleep(delay)
+    return last
+
+
 @dataclass
 class SourceState:
     tasks: list[TaskItem] = field(default_factory=list)
@@ -120,15 +133,22 @@ class Daemon:
         deck = DeckClient(nc)
         disabled = self.db.disabled_calendars()
 
+        def caldav_both():
+            # One client, sequential: parallel CalDAV sessions trip Nextcloud's auth throttling.
+            r_t: Any = _retry(lambda: cal.fetch_tasks(today))
+            r_e: Any = _retry(lambda: cal.fetch_events(today, disabled))
+            return r_t, r_e
+
         results = await asyncio.gather(
-            asyncio.to_thread(cal.fetch_tasks, today),
-            asyncio.to_thread(cal.fetch_events, today, disabled),
-            deck.fetch(),
-            return_exceptions=True,
+            asyncio.to_thread(caldav_both), deck.fetch(), return_exceptions=True
         )
         ok = True
         errors: dict[str, str] = {}
-        r_tasks, r_events, r_deck = results
+        r_both, r_deck = results
+        if isinstance(r_both, BaseException):
+            r_tasks = r_events = r_both
+        else:
+            r_tasks, r_events = r_both
         if isinstance(r_tasks, BaseException):
             ok, errors["tasks"] = False, str(r_tasks)
             log.warning("tasks fetch failed: %s", r_tasks)

@@ -117,7 +117,9 @@ class CalDavClient:
     # ---- high level --------------------------------------------------------------------
 
     def fetch_tasks(self, today: date):
-        cols = [c for c in self.collections() if c.vtodo]
+        # Nextcloud mirrors every Deck board as a read-only VTODO collection
+        # ("app-generated--deck--board-N"). Those come from the Deck API instead.
+        cols = [c for c in self.collections() if c.vtodo and not c.id.startswith("app-generated--")]
         items = []
         for col in cols:
             for ics in self.todos_raw(col):
