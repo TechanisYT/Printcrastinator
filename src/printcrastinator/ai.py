@@ -100,12 +100,62 @@ TOOLS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "print_receipt",
-            "description": "Print today's receipt now. layout: list or cards (empty = configured).",
+            "description": (
+                "Print the daily receipt (events, due, overdue, pinned) for a day. "
+                "day: YYYY-MM-DD, default today. layout: list or cards (empty = configured)."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
+                    "day": {"type": "string"},
                     "force": {"type": "boolean", "description": "print even if already printed"},
                     "layout": {"type": "string"},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "print_tasks",
+            "description": (
+                "Print a custom receipt with a title and a filtered set of open tasks, grouped by "
+                "list. Filters combine. list_ids: task list ids or Deck 'board/stack' ids (a bare "
+                "board id prints all its stacks). due_from/due_to: YYYY-MM-DD. include_no_due: "
+                "keep tasks without a due date (default true; set false for 'due in the next N "
+                "days'). overdue_only. tags: any-of. text: substring in title/notes."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "list_ids": {"type": "array", "items": {"type": "string"}},
+                    "due_from": {"type": "string"},
+                    "due_to": {"type": "string"},
+                    "include_no_due": {"type": "boolean"},
+                    "overdue_only": {"type": "boolean"},
+                    "tags": {"type": "array", "items": {"type": "string"}},
+                    "text": {"type": "string"},
+                },
+                "required": ["title"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "preview_tasks",
+            "description": "Same filters as print_tasks, returns the matching tasks, no print.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "list_ids": {"type": "array", "items": {"type": "string"}},
+                    "due_from": {"type": "string"},
+                    "due_to": {"type": "string"},
+                    "include_no_due": {"type": "boolean"},
+                    "overdue_only": {"type": "boolean"},
+                    "tags": {"type": "array", "items": {"type": "string"}},
+                    "text": {"type": "string"},
                 },
             },
         },
@@ -227,7 +277,7 @@ def agenda_context(
 SYSTEM = (
     "You are Printcrastinator, a terse assistant for a personal to-do list synced with Nextcloud. "
     "You can complete, reopen, edit and create tasks (all fields), create calendar events, "
-    "read and change settings, print the receipt "
+    "read and change settings, print the daily receipt for any day, print filtered task lists, "
     "and run printer tests with the provided tools. Always use the uid "
     "exactly as listed. When the user refers to a task by a rough description, pick the best "
     "match; if it is ambiguous, ask. After tool calls, confirm in one short sentence. "
@@ -240,6 +290,19 @@ LANGUAGE_RULE = {
     "de": "Antworte immer auf Deutsch, egal in welcher Sprache Aufgaben oder Nutzer schreiben.\n\n",
     "auto": "Reply in the language the user's message is written in.\n\n",
 }
+
+GUIDELINES = (
+    "Printing guidelines:\n"
+    "- 'print today / the receipt / for tomorrow / for <date>': print_receipt with day.\n"
+    "- 'print the <stack> list under deck <board>': print_tasks with "
+    "list_ids=['<board>/<stack>'] (look the id up in the lists), title '<board> · <stack>'.\n"
+    "- 'print everything from board <X>': list_ids=['<board id>'].\n"
+    "- 'tasks from list <L> due in the next week': list_ids=['<L id>'], due_from=today, "
+    "due_to=today+7, include_no_due=false.\n"
+    "- 'print what is overdue in <L>': list_ids, overdue_only=true.\n"
+    "- When unsure what a filter matches, call preview_tasks first, then print_tasks.\n"
+    "- Compute dates from 'Today is …'; never ask the user for the date format.\n\n"
+)
 
 SUMMARY_PROMPT = (
     "Write a short morning briefing (max 6 lines, plain text, no markdown headings): what is on "
@@ -283,9 +346,18 @@ class Assistant:
 
     async def _system(self, agenda: DailyAgenda) -> str:
         rule = LANGUAGE_RULE.get(self.cfg.language, LANGUAGE_RULE["en"])
+        warn = ""
+        if self.daemon.state.errors:
+            warn = (
+                "WARNING: the last fetch from Nextcloud failed ("
+                + "; ".join(f"{k}: {v[:80]}" for k, v in self.daemon.state.errors.items())
+                + "). The task list below may be stale or incomplete; say so.\n\n"
+            )
         return (
             SYSTEM
             + rule
+            + GUIDELINES
+            + warn
             + agenda_context(
                 agenda,
                 self.daemon.task_lists(),
@@ -357,12 +429,28 @@ class Assistant:
             if name == "set_setting":
                 return d.apply_setting(args["section"], args["key"], args["value"])
             if name == "print_receipt":
+                if args.get("day") and args["day"] != date.today().isoformat():
+                    return json.dumps(
+                        await d.print_day(
+                            date.fromisoformat(args["day"]), args.get("layout") or None
+                        )
+                    )
                 r = await d.maybe_print_daily(
                     force=bool(args.get("force", True)),
                     reason="ai",
                     layout_mode=args.get("layout") or None,
                 )
                 return json.dumps(r)
+            if name in ("print_tasks", "preview_tasks"):
+                f = {k: v for k, v in args.items() if k != "title" and v not in (None, "", [])}
+                for k in ("due_from", "due_to"):
+                    if k in f:
+                        f[k] = date.fromisoformat(f[k])
+                if name == "preview_tasks":
+                    items = d.select_tasks(**f)
+                    rows = [f"{t.uid} | {t.title} | {t.list_name}" for t in items][:60]
+                    return json.dumps({"count": len(items), "tasks": rows})
+                return json.dumps(await d.print_selection(args.get("title") or "Tasks", **f))
             if name == "printer_action":
                 act = args.get("action", "")
                 if act == "test_print":
@@ -408,7 +496,7 @@ class Assistant:
                     except ValueError:
                         args = {}
                 result = await self._run_tool(fn.get("name", ""), args)
-                if fn.get("name") not in ("get_settings",):
+                if fn.get("name") not in ("get_settings", "preview_tasks"):
                     actions.append(result)
                 messages.append(
                     {"role": "tool", "content": result, "tool_name": fn.get("name", "")}

@@ -36,6 +36,31 @@ class EventCreate(BaseModel):
     location: str = ""
 
 
+class Selection(BaseModel):
+    title: str = "Tasks"
+    list_ids: list[str] | None = None
+    due_from: str | None = None
+    due_to: str | None = None
+    include_no_due: bool = True
+    overdue_only: bool = False
+    tags: list[str] | None = None
+    text: str = ""
+    sources: list[str] | None = None
+
+
+def _selection_filters(b: Selection) -> dict:
+    return {
+        "list_ids": b.list_ids,
+        "due_from": date.fromisoformat(b.due_from) if b.due_from else None,
+        "due_to": date.fromisoformat(b.due_to) if b.due_to else None,
+        "include_no_due": b.include_no_due,
+        "overdue_only": b.overdue_only,
+        "tags": b.tags,
+        "text": b.text,
+        "sources": b.sources,
+    }
+
+
 class ChatBody(BaseModel):
     messages: list[dict[str, str]]
 
@@ -145,12 +170,33 @@ def make_router(daemon: Daemon) -> APIRouter:
         return daemon.status()
 
     @r.get("/agenda")
-    async def agenda(refresh: bool = False):
+    async def agenda(refresh: bool = False, day: str = ""):
+        if day:
+            return (await daemon.agenda_for(date.fromisoformat(day))).to_dict()
         ag = await daemon.agenda(refresh=refresh)
         return ag.to_dict()
 
+    @r.post("/print/day")
+    async def print_day(day: str, layout_mode: str = ""):
+        try:
+            return await daemon.print_day(date.fromisoformat(day), layout_mode or None)
+        except PrinterError as exc:
+            raise HTTPException(503, str(exc)) from exc
+
+    @r.post("/tasks/select")
+    async def tasks_select(body: Selection):
+        items = daemon.select_tasks(**_selection_filters(body))
+        return {"tasks": [t.to_dict() for t in items], "count": len(items)}
+
+    @r.post("/print/selection")
+    async def print_selection(body: Selection):
+        try:
+            return await daemon.print_selection(body.title, **_selection_filters(body))
+        except PrinterError as exc:
+            raise HTTPException(503, str(exc)) from exc
+
     @r.get("/preview.png")
-    async def preview(kind: str = "live", layout_mode: str = ""):
+    async def preview(kind: str = "live", layout_mode: str = "", day: str = ""):
         lang = daemon.cfg.ui.language
         mode = layout_mode or daemon.cfg.daily.layout
         opt = daemon.layout_options()
@@ -161,7 +207,8 @@ def make_router(daemon: Daemon) -> APIRouter:
         elif kind == "slip":
             rc = layout.slip_receipt(layout.sample_slip_items(), datetime.now(), lang)
         else:
-            rc = layout.daily_receipt(await daemon.agenda(), lang, mode, opt)
+            ag = await (daemon.agenda_for(date.fromisoformat(day)) if day else daemon.agenda())
+            rc = layout.daily_receipt(ag, lang, mode, opt)
         buf = BytesIO()
         render_image.render(rc).save(buf, format="PNG")
         return Response(buf.getvalue(), media_type="image/png")

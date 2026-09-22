@@ -24,6 +24,11 @@ LABELS: dict[str, dict[str, str]] = {
         "cut": "cut",
         "src_tasks": "Tasks",
         "src_deck": "Deck",
+        "events": "EVENTS",
+        "due": "DUE",
+        "due_on": "DUE {d}",
+        "pinned": "DECKS & LISTS",
+        "more_events": "also:",
     },
     "de": {
         "today": "HEUTE",
@@ -44,6 +49,11 @@ LABELS: dict[str, dict[str, str]] = {
         "cut": "schneiden",
         "src_tasks": "Aufgaben",
         "src_deck": "Deck",
+        "events": "TERMINE",
+        "due": "FÄLLIG",
+        "due_on": "FÄLLIG {d}",
+        "pinned": "DECKS & LISTEN",
+        "more_events": "außerdem:",
     },
 }
 

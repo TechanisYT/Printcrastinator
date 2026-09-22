@@ -13,7 +13,8 @@ and what `pc` opens from any terminal (`pc` is installed to `~/.local/bin` by `i
   (`POST /api/tasks/{uid}/done`), which writes to CalDAV (`complete()`/`uncomplete()`) or the Deck
   API (`done` field; the PUT must include `owner`).
 - Bottom: AI panel with the morning briefing and an input line.
-- Keys: `r` refresh, `p` print today's receipt (forced), `a` focus the AI input, `q` quit.
+- Keys: `r` refresh, `p` print today's receipt (forced), `t` print tomorrow's receipt, `a` focus
+  the AI input, `q` quit.
 - `printcrastinator show --plain` prints the static receipt rendering instead.
 
 ## Local AI (Ollama)
@@ -27,8 +28,11 @@ Config section `ai`: `enabled`, `url` (default `http://localhost:11434`), `model
   (with uids), the available lists, the writable calendars and each Deck board's labels and
   users as system context. Tools: `complete_task`, `reopen_task`, `edit_task`, `create_task`
   (title, notes, due, start, priority, tags/labels, location, assignees, stack), `create_event`
-  (in a chosen calendar, all-day or timed), `get_settings`, `set_setting`, `print_receipt`,
-  `printer_action`. Tool calls are executed by the daemon and the loop continues for up to
+  (in a chosen calendar, all-day or timed), `get_settings`, `set_setting`, `print_receipt`
+  (any day), `print_tasks` / `preview_tasks` (filtered custom receipts: list or stack ids, due
+  range, overdue only, tags, text), `printer_action`. The system prompt carries guidelines for
+  common phrasings ("print the X list under deck Y", "tasks from list L due next week") and
+  tells the model to preview before printing when a filter is unclear. Tool calls are executed by the daemon and the loop continues for up to
   four rounds. The reply and the list of performed
   actions come back; the terminal view refreshes after actions.
 - `think` is off by default: gemma4 otherwise spends thousands of hidden reasoning tokens per
@@ -52,7 +56,8 @@ daemon's HTTP API:
 | `list_calendars` / `create_event(calendar_id, title, start, end?, …)` | events in a Nextcloud calendar |
 | `get_settings` / `set_setting(section, key, value)` | read / change configuration |
 | `printer_action(action)` | test_print, density_sweep, feed, test_notification, full_cycle, poll |
-| `print_today(force?, layout?)` | print receipt |
+| `print_today(force?, layout?)` / `print_day(day, layout?)` | print the daily receipt for today / any day |
+| `select_tasks(…)` / `print_tasks(title, …)` | filter open tasks / print them as a custom receipt |
 | `daemon_status` | health |
 
 Register in Claude Code: `claude mcp add printcrastinator -- pc mcp`

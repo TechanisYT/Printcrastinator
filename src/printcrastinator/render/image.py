@@ -21,6 +21,8 @@ from ..receipt.model import (
     SubHeader,
     TearLine,
     Text,
+    Timeline,
+    TimelineEvent,
 )
 
 WIDTH = 384
@@ -228,6 +230,83 @@ def _picture(c: _Canvas, b: Picture) -> None:
     c.y += mono.height
 
 
+def _assign_columns(events: list[TimelineEvent], max_cols: int):
+    """Greedy interval colouring. Returns ([(event, col)], overflow_events)."""
+    placed: list[tuple[TimelineEvent, int]] = []
+    overflow: list[TimelineEvent] = []
+    col_end = [0] * max_cols
+    for e in sorted(events, key=lambda x: (x.start_min, x.end_min)):
+        for col in range(max_cols):
+            if col_end[col] <= e.start_min:
+                placed.append((e, col))
+                col_end[col] = e.end_min
+                break
+        else:
+            overflow.append(e)
+    return placed, overflow
+
+
+def _hhmm(m: int) -> str:
+    return f"{m // 60:02d}:{m % 60:02d}"
+
+
+def _timeline(c: _Canvas, b: Timeline) -> None:
+    placed, overflow = _assign_columns(list(b.events), b.max_columns)
+    if not placed:
+        return
+    px_per_hour = 64
+    lh_small = _line_height("small")
+    label_w = text_width("00:00", "small") + 6
+    bar_x = MARGIN + label_w
+    first = min(e.start_min for e, _ in placed) // 60
+    last = -(-max(e.end_min for e, _ in placed) // 60)
+    height = max(1, last - first) * px_per_hour
+    ncols = max(col for _, col in placed) + 1
+    area_x = bar_x + 6
+    gap = 4
+    col_w = (WIDTH - MARGIN - area_x - gap * (ncols - 1)) // ncols
+    c.ensure(height + lh_small + 16)
+    top = c.y + lh_small // 2
+
+    def y_of(minutes: int) -> int:
+        return top + int((minutes - first * 60) * px_per_hour / 60)
+
+    c.draw.rectangle((bar_x, top, bar_x + 1, top + height), fill=0)
+    for h in range(first, last + 1):
+        y = y_of(h * 60)
+        c.draw.rectangle((bar_x - 4, y, bar_x + 1, y), fill=0)
+        c.draw.text((MARGIN, y - lh_small // 2), f"{h:02d}:00", font=font("small"), fill=0)
+
+    def overlaps(a: TimelineEvent, b: TimelineEvent) -> bool:
+        return a.start_min < b.end_min and b.start_min < a.end_min
+
+    for e, col in placed:
+        # widen into columns to the right that hold nothing overlapping this event
+        span = 1
+        while col + span < ncols and not any(
+            c2 == col + span and overlaps(e, o) for o, c2 in placed
+        ):
+            span += 1
+        x0 = area_x + col * (col_w + gap)
+        x1 = x0 + span * col_w + (span - 1) * gap - 1
+        y0 = y_of(e.start_min)
+        y1 = max(y0 + lh_small + 6, y_of(e.end_min) - 2)
+        c.draw.rectangle((x0, y0, x1, y1), outline=0, width=2)
+        c.draw.rectangle((x0, y0, x0 + 5, y1), fill=0)
+        lines = wrap(e.title, "small", x1 - x0 - 14)
+        max_lines = max(1, (y1 - y0 - 4) // lh_small)
+        if len(lines) > max_lines:
+            lines = lines[:max_lines]
+            lines[-1] = lines[-1][:-1] + "…" if len(lines[-1]) > 1 else lines[-1]
+        ty = y0 + 3
+        for line in lines:
+            c.draw.text((x0 + 9, ty), line, font=font("small"), fill=0)
+            ty += lh_small
+    c.y = top + height + lh_small // 2 + 8
+    for e in overflow:
+        _event(c, EventLine(f"{_hhmm(e.start_min)}–{_hhmm(e.end_min)}", e.title))
+
+
 def _tear(c: _Canvas) -> None:
     c.ensure(12)
     y = c.y + 4
@@ -261,6 +340,8 @@ def _render_block(c: _Canvas, b: Block) -> None:
             _tear(c)
         case Picture():
             _picture(c, b)
+        case Timeline():
+            _timeline(c, b)
 
 
 def render(receipt: Receipt, top_pad: int = 8, bottom_pad: int = 8) -> Image.Image:

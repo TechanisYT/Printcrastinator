@@ -7,7 +7,7 @@ by default, toggle in Settings.
 
 | Section | Content |
 |---|---|
-| Dashboard | receipt preview, "Print today now", "Reprint (force)", "Print as cards", status, poll, notify, log |
+| Dashboard | receipt preview, "Print today now", "Reprint (force)", "Print as cards", print/preview for any date, custom print (lists, due range, text), status, poll, notify, log |
 | Tasks | current candidate tasks with a hide switch per occurrence; hidden list with unhide |
 | Deck | boards → stacks with an "always print" switch each |
 | Task lists | Nextcloud Tasks lists with an "always print" switch each |
@@ -20,9 +20,12 @@ by default, toggle in Settings.
 | Route | Effect |
 |---|---|
 | `GET /api/status` | daemon health, printer state, counts, today's print |
-| `GET /api/agenda?refresh=` | today's agenda |
+| `GET /api/agenda?refresh=&day=` | today's (or any day's) agenda |
 | `GET /api/preview.png?kind=live\|sample\|empty\|slip&layout_mode=` | rendered receipt |
 | `POST /api/print/daily?force=&layout_mode=` | daily gate / forced print (silent) |
+| `POST /api/print/day?day=&layout_mode=` | the daily receipt for any date, no gate |
+| `POST /api/print/sample` | the sample receipt |
+| `POST /api/tasks/select` · `POST /api/print/selection` | filter open tasks (list ids, due range, tags, text) / print them under a title |
 | `POST /api/print/test?sweep=` · `POST /api/printer/feed` · `POST /api/printer/action?action=` | printer actions |
 | `POST /api/notify` · `POST /api/notify/test` · `POST /api/test/cycle` | screen output tests, full morning cycle |
 | `POST /api/poll` | fetch now |
@@ -39,7 +42,7 @@ by default, toggle in Settings.
 |---|---|
 | `serve` | daemon + web UI (systemd) |
 | `show` (default for `pc`) | interactive terminal view; `--plain` static output, `--no-wait` |
-| `print-today [--force] [--layout list\|cards]` | via API; direct fallback if daemon down |
+| `print-today [--force] [--layout list\|cards] [--day YYYY-MM-DD]` | via API; direct fallback if daemon down |
 | `test-print [--sweep]` | calibration receipt |
 | `preview PATH [--kind …] [--layout …] [--lang …] [--open]` | write receipt PNG, no printer needed |
 | `notify` | desktop notification |

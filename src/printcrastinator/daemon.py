@@ -15,7 +15,7 @@ from . import agenda as agenda_mod
 from . import logos
 from .config import Config, load_config
 from .db import Database
-from .models import CalendarEvent, DailyAgenda, TaskItem
+from .models import CalendarEvent, DailyAgenda, TaskGroup, TaskItem
 from .printer.escpos_out import Printer, PrinterError
 from .receipt import i18n, layout
 from .render import image as render_image
@@ -248,6 +248,118 @@ class Daemon:
                 await self._refresh_sources(date.today())
                 self.last_poll_at = time.time()
         return self.build_agenda()
+
+    async def events_for(self, day: date) -> list[CalendarEvent]:
+        """Events of an arbitrary day (today comes from state)."""
+        if day == date.today():
+            return list(self.state.events)
+        nc = self.cfg.nextcloud
+        disabled = self.db.disabled_calendars()
+
+        def fetch():
+            cal = CalDavClient(nc, self.db)
+            _cols, evs = cal.fetch_events(day, disabled)
+            _xc, xevs, _xe = fetch_extra(self.cfg.extra_calendars, nc, day, disabled, self.db)
+            return evs + xevs
+
+        return await asyncio.to_thread(fetch)
+
+    async def agenda_for(self, day: date) -> DailyAgenda:
+        if day == date.today():
+            return await self.agenda()
+        if self.last_poll_at == 0 and self.cfg.nextcloud.configured:
+            await self.agenda(refresh=True)
+        return agenda_mod.build(
+            day,
+            self.state.tasks,
+            self.state.cards,
+            await self.events_for(day),
+            suppressed=self.db.suppressed_keys(),
+            always_lists=self.db.always_print_lists(),
+            always_stacks=self.db.always_print_stacks(),
+            overdue_max_days=self.cfg.daily.overdue_max_days,
+            overdue_max_count=self.cfg.daily.overdue_max_count,
+        )
+
+    async def print_day(self, day: date, layout_mode: str | None = None) -> dict[str, Any]:
+        """Print the receipt for any day, no once-per-day gate, no screen output."""
+        ag = await self.agenda_for(day)
+        img = render_image.render(
+            layout.daily_receipt(
+                ag,
+                self.cfg.ui.language,
+                layout_mode or self.cfg.daily.layout,
+                self.layout_options(),
+            )
+        )
+        await asyncio.to_thread(self.printer.print_image, img)
+        self.db.log("day", True, f"{day.isoformat()}: {len(ag.all_tasks)} tasks")
+        return {"printed": True, "day": day.isoformat(), "tasks": len(ag.all_tasks)}
+
+    def select_tasks(
+        self,
+        list_ids: list[str] | None = None,
+        due_from: date | None = None,
+        due_to: date | None = None,
+        include_no_due: bool = True,
+        overdue_only: bool = False,
+        tags: list[str] | None = None,
+        text: str = "",
+        sources: list[str] | None = None,
+    ) -> list[TaskItem]:
+        """Filter open tasks. list_ids: task list ids or 'board/stack' (a bare board id like
+        '4' matches every stack of that board)."""
+        suppressed = self.db.suppressed_keys()
+        today = date.today()
+        out = []
+        for t in self.candidates():
+            if t.suppression_key() in suppressed:
+                continue
+            if sources and t.source not in sources:
+                continue
+            if list_ids:
+                ok = False
+                for lid in list_ids:
+                    if t.list_id == lid or (t.source == "deck" and t.list_id.startswith(f"{lid}/")):
+                        ok = True
+                if not ok:
+                    continue
+            if overdue_only and not (t.due and t.due < today):
+                continue
+            if t.due is None:
+                if not include_no_due or overdue_only:
+                    continue
+            else:
+                if due_from and t.due < due_from:
+                    continue
+                if due_to and t.due > due_to:
+                    continue
+            if tags and not any(tag.lower() in (x.lower() for x in t.tags) for tag in tags):
+                continue
+            if text and text.lower() not in (t.title + " " + t.notes).lower():
+                continue
+            out.append(t)
+        return out
+
+    def group_by_list(self, items: list[TaskItem], lang: str | None = None) -> list[TaskGroup]:
+        lang = lang or self.cfg.ui.language
+        groups: dict[str, TaskGroup] = {}
+        for t in sorted(items, key=lambda x: (x.due is None, x.due or date.max, x.title.lower())):
+            name = f"{t.list_name} ({i18n.label(lang, 'src_' + t.source)})"
+            groups.setdefault(name, TaskGroup(name)).items.append(t)
+        return [groups[k] for k in sorted(groups, key=str.lower)]
+
+    async def print_selection(self, title: str, **filters: Any) -> dict[str, Any]:
+        items = self.select_tasks(**filters)
+        groups = self.group_by_list(items)
+        img = render_image.render(
+            layout.custom_receipt(
+                title, groups, date.today(), self.cfg.ui.language, self.layout_options()
+            )
+        )
+        await asyncio.to_thread(self.printer.print_image, img)
+        self.db.log("custom", True, f"{title}: {len(items)} tasks")
+        return {"printed": True, "title": title, "tasks": len(items)}
 
     def candidates(self) -> list[TaskItem]:
         return agenda_mod.candidates(self.state.tasks, self.state.cards)

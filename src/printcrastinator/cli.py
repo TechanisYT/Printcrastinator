@@ -99,7 +99,14 @@ def _cmd_mcp(args: argparse.Namespace) -> int:
 def _cmd_print_today(args: argparse.Namespace) -> int:
     from . import client
 
-    result = client.print_daily(load_config(), force=args.force, layout=args.layout or "")
+    if args.day:
+        from .client import _call
+
+        result = _call(
+            load_config(), "POST", "/api/print/day", day=args.day, layout_mode=args.layout or ""
+        )
+    else:
+        result = client.print_daily(load_config(), force=args.force, layout=args.layout or "")
     print(result)
     return 0 if result.get("printed") or result.get("on_screen") else 1
 
@@ -138,6 +145,7 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("print-today", help="print today's receipt")
     s.add_argument("--force", action="store_true", help="ignore the once-per-day gate")
     s.add_argument("--layout", choices=["list", "cards"], help="override the configured layout")
+    s.add_argument("--day", help="print the receipt for this date (YYYY-MM-DD) instead of today")
     s.set_defaults(func=_cmd_print_today)
 
     s = sub.add_parser("test-print", help="calibration receipt")

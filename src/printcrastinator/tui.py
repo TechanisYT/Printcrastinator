@@ -93,6 +93,7 @@ class TaskView(App):
         Binding("q", "quit", "Quit"),
         Binding("r", "refresh", "Refresh"),
         Binding("p", "print_receipt", "Print"),
+        Binding("t", "print_tomorrow", "Print tomorrow"),
         Binding("a", "focus_ai", "Ask AI"),
         Binding("escape", "unfocus", show=False),
     ]
@@ -272,6 +273,17 @@ class TaskView(App):
         try:
             r = await self._post("/api/print/daily", params={"force": True})
             self.notify("printed" if r.get("printed") else f"not printed: {r.get('reason')}")
+        except Exception as exc:
+            self.notify(f"print failed: {exc}", severity="error")
+
+    @work(group="print")
+    async def action_print_tomorrow(self) -> None:
+        from datetime import timedelta
+
+        day = (date.today() + timedelta(days=1)).isoformat()
+        try:
+            r = await self._post("/api/print/day", params={"day": day})
+            self.notify(f"printed {day}: {r.get('tasks')} tasks")
         except Exception as exc:
             self.notify(f"print failed: {exc}", severity="error")
 

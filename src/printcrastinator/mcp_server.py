@@ -114,6 +114,41 @@ def build_server():
         return _api("POST", "/api/print/daily", params={"force": force, "layout_mode": layout})
 
     @srv.tool()
+    def print_day(day: str, layout: str = "") -> dict:
+        """Print the daily receipt for any day (YYYY-MM-DD): its events, tasks due that day,
+        what is overdue by then, and pinned lists."""
+        return _api("POST", "/api/print/day", params={"day": day, "layout_mode": layout})
+
+    @srv.tool()
+    def select_tasks(
+        list_ids: list[str] | None = None,
+        due_from: str | None = None,
+        due_to: str | None = None,
+        include_no_due: bool = True,
+        overdue_only: bool = False,
+        tags: list[str] | None = None,
+        text: str = "",
+    ) -> dict:
+        """Filter open tasks (list ids or 'board/stack', due range, tags, text), no print."""
+        body = {k: v for k, v in locals().items() if v is not None}
+        return _api("POST", "/api/tasks/select", json=body)
+
+    @srv.tool()
+    def print_tasks(
+        title: str,
+        list_ids: list[str] | None = None,
+        due_from: str | None = None,
+        due_to: str | None = None,
+        include_no_due: bool = True,
+        overdue_only: bool = False,
+        tags: list[str] | None = None,
+        text: str = "",
+    ) -> dict:
+        """Print a custom receipt: a title and the tasks matching the filters, grouped by list."""
+        body = {k: v for k, v in locals().items() if v is not None}
+        return _api("POST", "/api/print/selection", json=body)
+
+    @srv.tool()
     def get_settings() -> dict:
         """All Printcrastinator settings (app password masked)."""
         return _api("GET", "/api/settings")

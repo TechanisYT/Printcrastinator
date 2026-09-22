@@ -59,6 +59,22 @@ class TearLine:
 
 
 @dataclass(frozen=True)
+class TimelineEvent:
+    title: str
+    start_min: int  # minutes from midnight
+    end_min: int
+
+
+@dataclass(frozen=True)
+class Timeline:
+    """Timed events on a vertical hour bar. Overlaps go side by side, max 3 columns;
+    events that would need a 4th column are listed below the bar."""
+
+    events: tuple[TimelineEvent, ...]
+    max_columns: int = 3
+
+
+@dataclass(frozen=True)
 class Picture:
     path: str
     max_height: int = 160
@@ -66,7 +82,16 @@ class Picture:
 
 
 Block = (
-    Rule | Spacer | Text | SectionHeader | SubHeader | EventLine | CheckItem | TearLine | Picture
+    Rule
+    | Spacer
+    | Text
+    | SectionHeader
+    | SubHeader
+    | EventLine
+    | CheckItem
+    | TearLine
+    | Picture
+    | Timeline
 )
 
 

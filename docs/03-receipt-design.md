@@ -21,6 +21,27 @@
   (default 200). The Anjet 58 resets its USB link when flooded with raster data, which drops
   bytes and blanks paper; pacing keeps the transfer within what it can print.
 
+## Sections (top to bottom)
+
+EVENTS → DUE TODAY (or DUE <date> for other days) → OVERDUE → DECKS & LISTS (the always-print
+stacks and lists). Inside DUE and OVERDUE, tasks are grouped under their list label when
+`daily.group_by_list` is on.
+
+### Events timeline
+
+Timed events are drawn on a vertical hour bar spanning from the first event's hour to the last
+event's end hour (64 px per hour). Each event is a framed block with a thick left edge placed at
+its time; the title is wrapped inside and truncated with "…" when the block is too short.
+Overlapping events are laid out side by side (greedy column assignment, at most 3 columns); an
+event widens into free columns to its right. Events that would need a fourth column are listed
+as plain lines under the bar. All-day events are listed above the bar.
+
+### Custom receipts
+
+`custom_receipt(title, groups, day)`: a title header with the date, then the selected tasks
+under their list labels. Used by the "Custom print" card, the API (`/api/print/selection`), the
+AI (`print_tasks`) and MCP. Any day's daily receipt can be printed via `/api/print/day`.
+
 ## Layout (top to bottom)
 
 ```

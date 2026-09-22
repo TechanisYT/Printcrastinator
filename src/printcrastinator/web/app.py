@@ -96,6 +96,36 @@ def sec_dashboard(daemon: Daemon) -> None:
                         "cards",
                     ),
                 ).props("outline").tooltip("Each task in its own block with cut lines")
+            with ui.row().classes("items-end gap-2"):
+                from datetime import date as _date
+                from datetime import timedelta as _td
+
+                day_in = (
+                    ui.input("Receipt for date", value=(_date.today() + _td(days=1)).isoformat())
+                    .props("type=date")
+                    .classes("w-44")
+                )
+                day_layout = ui.select(
+                    {"": "configured layout", "list": "list", "cards": "cards"}, value=""
+                ).classes("w-40")
+                ui.button(
+                    "Print for date",
+                    icon="event",
+                    on_click=lambda: _run(
+                        daemon.print_day(
+                            _date.fromisoformat(day_in.value), day_layout.value or None
+                        ),
+                        "day",
+                    ),
+                ).props("outline")
+                ui.button(
+                    "Preview",
+                    icon="visibility",
+                    on_click=lambda: img.set_source(
+                        f"/api/preview.png?kind=live&day={day_in.value}"
+                        f"&layout_mode={day_layout.value}&t={time.time()}"
+                    ),
+                ).props("flat")
         with ui.column().classes("gap-2 grow"):
             ui.label("Status").classes("text-lg font-bold")
             status_md = ui.markdown()
@@ -142,6 +172,53 @@ def sec_dashboard(daemon: Daemon) -> None:
                         ui.notify("sent"),
                     ),
                 ).props("outline")
+    with ui.card().classes("w-full"):
+        ui.label("Custom print").classes("text-lg font-bold")
+        ui.label("Pick lists or stacks and/or a due range, then print just those tasks.").classes(
+            "text-sm opacity-70"
+        )
+        lists = daemon.task_lists()
+        with ui.row().classes("items-end gap-2 flex-wrap"):
+            c_title = ui.input("Title", value="Tasks").classes("w-48")
+            c_lists = (
+                ui.select(
+                    {ls["id"]: ls["name"] for ls in lists},
+                    multiple=True,
+                    label="Lists / stacks (empty = all)",
+                )
+                .classes("w-96")
+                .props("use-chips")
+            )
+            c_from = ui.input("Due from").props("type=date").classes("w-40")
+            c_to = ui.input("Due to").props("type=date").classes("w-40")
+            c_nodue = ui.switch("Include tasks without due date", value=True)
+            c_overdue = ui.switch("Overdue only", value=False)
+            c_text = ui.input("Text contains").classes("w-48")
+            c_count = ui.label("").classes("text-sm opacity-70")
+
+            def filters():
+                from datetime import date as _d
+
+                return dict(
+                    list_ids=list(c_lists.value or []) or None,
+                    due_from=_d.fromisoformat(c_from.value) if c_from.value else None,
+                    due_to=_d.fromisoformat(c_to.value) if c_to.value else None,
+                    include_no_due=bool(c_nodue.value),
+                    overdue_only=bool(c_overdue.value),
+                    text=c_text.value or "",
+                )
+
+            def count():
+                c_count.set_text(f"{len(daemon.select_tasks(**filters()))} tasks match")
+
+            ui.button("Count", icon="filter_alt", on_click=count).props("outline")
+            ui.button(
+                "Print selection",
+                icon="print",
+                on_click=lambda: _run(
+                    daemon.print_selection(c_title.value or "Tasks", **filters()), "custom"
+                ),
+            )
     ui.label("Recent log").classes("text-lg font-bold")
     log_table = ui.table(
         columns=[

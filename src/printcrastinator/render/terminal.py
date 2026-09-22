@@ -16,6 +16,7 @@ from ..receipt.model import (
     SubHeader,
     TearLine,
     Text,
+    Timeline,
 )
 
 COLS = 40
@@ -40,6 +41,13 @@ def render(receipt: Receipt, console: Console | None = None) -> None:
                 if h:
                     line.append(f"  {h}", style="dim")
                 console.print(line)
+            case Timeline(events=evs):
+                for e in evs:
+                    when = (
+                        f"{e.start_min // 60:02d}:{e.start_min % 60:02d}–"
+                        f"{e.end_min // 60:02d}:{e.end_min % 60:02d}"
+                    )
+                    console.print(RText.assemble((f"{when:<12}", "cyan"), e.title))
             case SubHeader(text=t):
                 console.print(RText(f"  {t}", style="dim bold"))
             case EventLine(time=t, title=title):
