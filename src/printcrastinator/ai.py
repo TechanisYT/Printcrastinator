@@ -295,7 +295,17 @@ class Assistant:
             )
         )
 
+    def _no_data_message(self) -> str | None:
+        """When the fetch failed and nothing is loaded, answer without the model."""
+        st = self.daemon.state
+        if st.errors and not (st.tasks or st.cards):
+            reasons = "; ".join(f"{k}: {v.splitlines()[0][:100]}" for k, v in st.errors.items())
+            return f"I can't see your tasks right now, the Nextcloud fetch failed: {reasons}"
+        return None
+
     async def summary(self, agenda: DailyAgenda) -> str:
+        if (msg := self._no_data_message()) is not None:
+            return msg
         msg = await self._chat(
             [
                 {"role": "system", "content": await self._system(agenda)},
@@ -378,6 +388,8 @@ class Assistant:
 
     async def chat(self, history: list[dict[str, str]], agenda: DailyAgenda) -> dict[str, Any]:
         """history: [{role, content}] from the client. Returns reply + actions performed."""
+        if (msg := self._no_data_message()) is not None:
+            return {"reply": msg, "actions": []}
         messages: list[dict[str, Any]] = [{"role": "system", "content": await self._system(agenda)}]
         messages.extend(history[-12:])
         actions: list[str] = []
