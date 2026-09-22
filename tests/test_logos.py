@@ -19,7 +19,11 @@ def test_logo_pick_and_render(tmp_path, monkeypatch):
     assert logos.pick_logo(LogoConfig(mode="fixed", file="MyLogo.png")) == str(saved)
     assert logos.pick_logo(LogoConfig(mode="fixed", file="nope.png")) == ""
 
-    opt = logos.options(LogoConfig(mode="random", max_height=100), quote=True)
+    from printcrastinator.config import Config
+
+    cfg = Config()
+    cfg.logo = LogoConfig(mode="random", max_height=100)
+    opt = logos.options(cfg)
     with_logo = image.render(layout.daily_receipt(layout.sample_agenda(), "en", "list", opt))
     without = image.render(layout.daily_receipt(layout.sample_agenda(), "en"))
     # scaled to 352 px wide -> 132 px tall, capped at max_height 100, plus 10 px spacer

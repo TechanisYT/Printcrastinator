@@ -46,8 +46,8 @@ def render(receipt: Receipt, console: Console | None = None) -> None:
                 if r:
                     line.append(f"  {r}", style="red")
                 console.print(line)
-                if m:
-                    console.print(RText(f"    {m}", style="dim"))
+                for line in m.split("\n") if m else []:
+                    console.print(RText(f"    {line}", style="dim"))
             case TearLine():
                 console.print("✂ " + "- " * ((COLS - 2) // 2), style="dim")
             case Picture(path=pth):

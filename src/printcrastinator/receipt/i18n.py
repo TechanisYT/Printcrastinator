@@ -22,6 +22,8 @@ LABELS: dict[str, dict[str, str]] = {
         "today_word": "today",
         "older_overdue": "+{n} older overdue not shown",
         "cut": "cut",
+        "src_tasks": "Tasks",
+        "src_deck": "Deck",
     },
     "de": {
         "today": "HEUTE",
@@ -40,6 +42,8 @@ LABELS: dict[str, dict[str, str]] = {
         "today_word": "heute",
         "older_overdue": "+{n} ältere überfällige nicht gezeigt",
         "cut": "schneiden",
+        "src_tasks": "Aufgaben",
+        "src_deck": "Deck",
     },
 }
 
@@ -82,5 +86,6 @@ def date_line(lang: str, d: date) -> str:
     return f"{d.day} {months[d.month - 1]} {d.year}"
 
 
-def quote_for(d: date) -> str:
-    return QUOTES[d.toordinal() % len(QUOTES)]
+def quote_for(d: date, quotes: list[str] | None = None) -> str:
+    pool = quotes if quotes else QUOTES
+    return pool[d.toordinal() % len(pool)]

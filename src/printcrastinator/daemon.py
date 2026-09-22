@@ -16,7 +16,7 @@ from .config import Config, load_config
 from .db import Database
 from .models import CalendarEvent, DailyAgenda, TaskItem
 from .printer.escpos_out import Printer, PrinterError
-from .receipt import layout
+from .receipt import i18n, layout
 from .render import image as render_image
 from .render import notify, screen
 from .sources.caldav_client import CalDavClient, Collection
@@ -68,6 +68,7 @@ class Daemon:
         self._lock = asyncio.Lock()
         self._tasks: list[asyncio.Task[Any]] = []
         self.seeded = self.db.seen_count() > 0
+        self.db.seed_quotes(i18n.QUOTES)
 
     # ---- lifecycle -----------------------------------------------------------------------
 
@@ -220,7 +221,7 @@ class Daemon:
         return " · ".join(parts)
 
     def layout_options(self) -> layout.Options:
-        return logos.options(self.cfg.logo, self.cfg.daily.quote)
+        return logos.options(self.cfg, self.db)
 
     async def test_full_cycle(self) -> dict[str, Any]:
         """Simulate a fresh morning: forget today's print, fetch, print, notify, open window."""

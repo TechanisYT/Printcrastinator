@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import random
+from datetime import date
 from pathlib import Path
 
-from .config import LogoConfig, logo_dir
+from .config import Config, LogoConfig, logo_dir
+from .db import Database
+from .receipt import i18n
 from .receipt.layout import Options
 
 ALLOWED = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
@@ -48,10 +51,20 @@ def pick_logo(cfg: LogoConfig) -> str:
     return str(random.choice(logos))
 
 
-def options(cfg_logo: LogoConfig, quote: bool) -> Options:
+def options(cfg: Config, db: Database | None = None, day: date | None = None) -> Options:
+    """Receipt options from config + db (quotes)."""
+    quote = ""
+    if cfg.daily.quote:
+        pool = [q["text"] for q in db.quotes()] if db else []
+        quote = i18n.quote_for(day or date.today(), pool)
     return Options(
-        logo=pick_logo(cfg_logo),
-        logo_max_height=cfg_logo.max_height,
-        logo_dither=cfg_logo.dither,
+        logo=pick_logo(cfg.logo),
+        logo_max_height=cfg.logo.max_height,
+        logo_dither=cfg.logo.dither,
         quote=quote,
+        quote_position=cfg.daily.quote_position,
+        show_notes=cfg.daily.show_notes,
+        notes_max_lines=cfg.daily.notes_max_lines,
+        group_by_list=cfg.daily.group_by_list,
+        show_list=cfg.daily.show_list,
     )

@@ -25,7 +25,12 @@ class Options:
     logo: str = ""  # path to an image file, empty = none
     logo_max_height: int = 160
     logo_dither: bool = False
-    quote: bool = False
+    quote: str = ""  # text, empty = none
+    quote_position: str = "top"
+    show_notes: bool = True
+    notes_max_lines: int = 3
+    group_by_list: bool = True
+    show_list: bool = True
 
 
 def _event_time(ev: CalendarEvent, lang: str) -> str:
@@ -46,8 +51,58 @@ def _header(r: Receipt, day: date, lang: str, opt: Options) -> None:
         Text(i18n.date_line(lang, day), "headline", "center", wrap=False),
         Spacer(10),
         Rule(3),
-        Spacer(14),
     )
+    if opt.quote and opt.quote_position == "top":
+        r.add(Spacer(8), Text(f"“{opt.quote}”", "small", "center"), Spacer(4), Rule(1))
+    r.add(Spacer(14))
+
+
+def _notes(t: TaskItem, opt: Options) -> str:
+    """Meta text under a task: notes (trimmed) and tags."""
+    parts: list[str] = []
+    if opt.show_notes and t.notes:
+        lines = [ln.strip() for ln in t.notes.splitlines() if ln.strip()]
+        text = (
+            " ".join(lines[: opt.notes_max_lines]) if opt.notes_max_lines > 0 else " ".join(lines)
+        )
+        if opt.notes_max_lines > 0 and len(lines) > opt.notes_max_lines:
+            text += " …"
+        parts.append(text)
+    if opt.show_notes and t.tags:
+        parts.append("#" + " #".join(t.tags))
+    return "\n".join(parts)
+
+
+def _source_label(t: TaskItem, lang: str) -> str:
+    return f"{t.list_name} ({i18n.label(lang, 'src_' + t.source)})"
+
+
+def _grouped_sections(agenda: DailyAgenda, lang: str) -> list[tuple[str, list[TaskItem]]]:
+    """Tasks grouped by list/stack, each group sorted overdue first, then today, then rest."""
+    day = agenda.day
+    groups: dict[str, list[TaskItem]] = {}
+    for t in agenda.all_tasks:
+        groups.setdefault(_source_label(t, lang), []).append(t)
+
+    def rank(t: TaskItem) -> tuple:
+        late = t.days_late(day) if t.due else -(10**6)
+        return (0 if late > 0 else 1 if late == 0 else 2, -late, t.title.lower())
+
+    out = []
+    for name in sorted(groups, key=str.lower):
+        out.append((name, sorted(groups[name], key=rank)))
+    return out
+
+
+def _status_marker(t: TaskItem, day: date, lang: str) -> str:
+    if t.due is None:
+        return ""
+    late = t.days_late(day)
+    if late > 0:
+        return i18n.label(lang, "late", n=late)
+    if late == 0:
+        return i18n.label(lang, "today_word")
+    return t.due.strftime("%d.%m")
 
 
 def _events(r: Receipt, agenda: DailyAgenda, lang: str) -> None:
@@ -74,8 +129,8 @@ def _footer(r: Receipt, agenda: DailyAgenda, lang: str, opt: Options) -> None:
     r.add(Spacer(6), Rule(1), Spacer(8))
     if agenda.overdue_hidden:
         r.add(Text(i18n.label(lang, "older_overdue", n=agenda.overdue_hidden), "small", "center"))
-    if opt.quote:
-        r.add(Text(f"“{i18n.quote_for(agenda.day)}”", "small", "center"))
+    if opt.quote and opt.quote_position != "top":
+        r.add(Text(f"“{opt.quote}”", "small", "center"))
     r.add(Spacer(12), TearLine())
 
 
@@ -92,22 +147,42 @@ def daily_receipt(
         r.add(Text(i18n.label(lang, "no_tasks"), "body", "center"), Spacer(8))
         _footer(r, agenda, lang, opt)
         return r
+    if opt.group_by_list:
+        for name, items in _grouped_sections(agenda, lang):
+            r.add(SectionHeader(name, hint=str(len(items))))
+            for t in items:
+                r.add(
+                    CheckItem(
+                        t.title, right=_status_marker(t, agenda.day, lang), meta=_notes(t, opt)
+                    )
+                )
+            r.add(Spacer(14))
+        _footer(r, agenda, lang, opt)
+        return r
+
+    def meta_for(t: TaskItem) -> str:
+        parts = [_source_label(t, lang)] if opt.show_list else []
+        n = _notes(t, opt)
+        if n:
+            parts.append(n)
+        return "\n".join(parts)
+
     if agenda.overdue:
         r.add(SectionHeader(i18n.label(lang, "overdue"), hint=str(len(agenda.overdue))))
         for t in agenda.overdue:
-            r.add(CheckItem(t.title, right=_task_marker(t, agenda.day, lang)))
+            r.add(CheckItem(t.title, right=_task_marker(t, agenda.day, lang), meta=meta_for(t)))
         r.add(Spacer(14))
     if agenda.due_today:
         r.add(SectionHeader(i18n.label(lang, "due_today"), hint=str(len(agenda.due_today))))
         for t in agenda.due_today:
-            r.add(CheckItem(t.title))
+            r.add(CheckItem(t.title, meta=meta_for(t)))
         r.add(Spacer(14))
     for group in agenda.always:
         if not group.items:
             continue
         r.add(SectionHeader(group.title, hint=str(len(group.items))))
         for t in group.items:
-            r.add(CheckItem(t.title, right=_task_marker(t, agenda.day, lang)))
+            r.add(CheckItem(t.title, right=_task_marker(t, agenda.day, lang), meta=_notes(t, opt)))
         r.add(Spacer(14))
     _footer(r, agenda, lang, opt)
     return r
@@ -203,15 +278,21 @@ def sample_agenda(day: date | None = None) -> DailyAgenda:
     ]
 
     def t(
-        uid: str, title: str, due: date | None, src: str = "tasks", ln: str = "Personal"
+        uid: str, title: str, due: date | None, src: str = "tasks", ln: str = "Personal", **kw
     ) -> TaskItem:
-        return TaskItem(uid, src, title, due, ln.lower(), ln)  # type: ignore[arg-type]
+        return TaskItem(uid, src, title, due, ln.lower(), ln, **kw)  # type: ignore[arg-type]
 
     return DailyAgenda(
         day=day,
         events=ev,
         overdue=[
-            t("o1", "Stromrechnung zahlen", day - timedelta(days=3)),
+            t(
+                "o1",
+                "Stromrechnung zahlen",
+                day - timedelta(days=3),
+                notes="Kundennummer 4711\nBetrag 84,30 €",
+                tags=("home", "money"),
+            ),
             t("o2", "Reply to Anna about the weekend trip plans", day - timedelta(days=1)),
         ],
         due_today=[

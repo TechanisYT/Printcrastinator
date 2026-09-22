@@ -82,8 +82,16 @@ class DailyConfig:
     # Overdue filters, 0 = unlimited. Both can be combined.
     overdue_max_days: int = 0
     overdue_max_count: int = 0
-    # Rotating motivational quote in the footer.
-    quote: bool = False
+    # Rotating motivational quote (edit the list in Settings). "top" or "bottom".
+    quote: bool = True
+    quote_position: str = "top"
+    # Print task notes/description and tags under the title.
+    show_notes: bool = True
+    notes_max_lines: int = 3
+    # Group tasks by task list / Deck stack instead of overdue / due today sections.
+    group_by_list: bool = True
+    # In the flat layout, show the list or board name next to each task.
+    show_list: bool = True
 
 
 @dataclass

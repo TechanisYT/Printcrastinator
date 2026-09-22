@@ -419,7 +419,58 @@ def sec_settings(daemon: Daemon, dark: ui.dark_mode) -> None:
         od_count = ui.number(
             "Max overdue tasks", value=cfg.daily.overdue_max_count, min=0, max=500
         ).tooltip("Keeps the most recently due ones; a '+N older' line shows the rest")
-        quote_sw = ui.switch("Motivational quote in the footer", value=cfg.daily.quote)
+        group_sw = ui.switch(
+            "Group tasks by task list / Deck stack (instead of overdue / due today)",
+            value=cfg.daily.group_by_list,
+        )
+        showlist_sw = ui.switch(
+            "Flat layout: show list or board name under each task", value=cfg.daily.show_list
+        )
+        notes_sw = ui.switch("Print notes, descriptions and tags", value=cfg.daily.show_notes)
+        notes_lines = ui.number(
+            "Max note lines (0 = all)", value=cfg.daily.notes_max_lines, min=0, max=50
+        )
+    with ui.card().classes("w-full"):
+        ui.label("Quotes").classes("font-bold")
+        quote_sw = ui.switch("Print a rotating quote", value=cfg.daily.quote)
+        quote_pos = ui.select(
+            {"top": "Top, under the date", "bottom": "Bottom, above the tear line"},
+            value=cfg.daily.quote_position,
+            label="Position",
+        ).classes("w-72")
+        quotes_box = ui.column().classes("w-full gap-1")
+
+        def refresh_quotes():
+            quotes_box.clear()
+            with quotes_box:
+                for q in daemon.db.quotes():
+                    with ui.row().classes("w-full items-center"):
+                        inp = ui.input(value=q["text"]).classes("grow")
+                        ui.button(
+                            icon="save",
+                            on_click=lambda q=q, inp=inp: (
+                                daemon.db.update_quote(q["id"], inp.value),
+                                ui.notify("quote saved"),
+                            ),
+                        ).props("flat dense")
+                        ui.button(
+                            icon="delete",
+                            on_click=lambda q=q: (
+                                daemon.db.delete_quote(q["id"]),
+                                refresh_quotes(),
+                            ),
+                        ).props("flat dense")
+                with ui.row().classes("w-full items-center"):
+                    new_q = ui.input(placeholder="New quote").classes("grow")
+
+                    def add():
+                        if new_q.value.strip():
+                            daemon.db.add_quote(new_q.value)
+                            refresh_quotes()
+
+                    ui.button(icon="add", on_click=add).props("flat dense")
+
+        refresh_quotes()
     with ui.card().classes("w-full"):
         ui.label("Logo").classes("font-bold")
         ui.label(
@@ -517,6 +568,11 @@ def sec_settings(daemon: Daemon, dark: ui.dark_mode) -> None:
             overdue_max_days=int(od_days.value),
             overdue_max_count=int(od_count.value),
             quote=bool(quote_sw.value),
+            quote_position=quote_pos.value,
+            show_notes=bool(notes_sw.value),
+            notes_max_lines=int(notes_lines.value),
+            group_by_list=bool(group_sw.value),
+            show_list=bool(showlist_sw.value),
         )
         cfg.logo = replace(
             cfg.logo,

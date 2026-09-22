@@ -59,6 +59,10 @@ CREATE TABLE IF NOT EXISTS print_log (
     ok INTEGER NOT NULL,
     detail TEXT NOT NULL DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS quotes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    text TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS kv (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -278,3 +282,29 @@ class Database:
     def kv_set(self, key: str, value: str) -> None:
         with self.connect() as con:
             con.execute("INSERT OR REPLACE INTO kv(key, value) VALUES (?, ?)", (key, value))
+
+    # ---- quotes -----------------------------------------------------------------------
+
+    def quotes(self) -> list[dict[str, Any]]:
+        with self.connect() as con:
+            return [dict(r) for r in con.execute("SELECT id, text FROM quotes ORDER BY id")]
+
+    def add_quote(self, text: str) -> int:
+        with self.connect() as con:
+            return con.execute("INSERT INTO quotes(text) VALUES (?)", (text.strip(),)).lastrowid
+
+    def update_quote(self, quote_id: int, text: str) -> None:
+        with self.connect() as con:
+            con.execute("UPDATE quotes SET text = ? WHERE id = ?", (text.strip(), quote_id))
+
+    def delete_quote(self, quote_id: int) -> None:
+        with self.connect() as con:
+            con.execute("DELETE FROM quotes WHERE id = ?", (quote_id,))
+
+    def seed_quotes(self, defaults: list[str]) -> None:
+        """Insert defaults once (tracked in kv so deleting them all sticks)."""
+        if self.kv_get("quotes_seeded"):
+            return
+        for q in defaults:
+            self.add_quote(q)
+        self.kv_set("quotes_seeded", "1")

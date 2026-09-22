@@ -20,7 +20,11 @@ def _cmd_preview(args: argparse.Namespace) -> int:
 
     lang = args.lang or cfg.ui.language
     mode = args.layout or cfg.daily.layout
-    opt = logos.options(cfg.logo, cfg.daily.quote)
+    from .db import Database
+
+    db = Database()
+    db.seed_quotes(__import__("printcrastinator.receipt.i18n", fromlist=["QUOTES"]).QUOTES)
+    opt = logos.options(cfg, db)
     day = date.fromisoformat(args.day) if args.day else None
     if args.kind == "slip":
         receipt = layout.slip_receipt(layout.sample_slip_items(day), datetime.now(), lang)

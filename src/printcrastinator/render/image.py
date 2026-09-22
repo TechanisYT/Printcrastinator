@@ -128,13 +128,16 @@ def _text_block(c: _Canvas, b: Text) -> None:
 
 def _section(c: _Canvas, b: SectionHeader) -> None:
     lh = _line_height("section")
-    c.ensure(lh + 3 + 8)
-    _draw_text(c, MARGIN, b.text, "section")
-    if b.hint:
-        hy = c.y + (lh - _line_height("small")) // 2
-        w = text_width(b.hint, "small")
-        c.draw.text((WIDTH - MARGIN - w, hy), b.hint, font=font("small"), fill=0)
-    c.y += lh
+    hint_w = text_width(b.hint, "small") + 8 if b.hint else 0
+    lines = wrap(b.text, "section", WIDTH - 2 * MARGIN - hint_w)
+    c.ensure(lh * len(lines) + 3 + 8)
+    for i, line in enumerate(lines):
+        _draw_text(c, MARGIN, line, "section")
+        if i == 0 and b.hint:
+            hy = c.y + (lh - _line_height("small")) // 2
+            w = text_width(b.hint, "small")
+            c.draw.text((WIDTH - MARGIN - w, hy), b.hint, font=font("small"), fill=0)
+        c.y += lh
     c.draw.rectangle((MARGIN, c.y, WIDTH - MARGIN - 1, c.y + 2), fill=0)
     c.y += 3 + 8
 
@@ -161,7 +164,9 @@ def _check(c: _Canvas, b: CheckItem) -> None:
     # re-wrap tail lines with the full width
     if len(lines) > 1:
         lines = [lines[0]] + wrap(" ".join(lines[1:]), "body", rest_avail)
-    meta_lines = wrap(b.meta, "small", rest_avail) if b.meta else []
+    meta_lines: list[str] = []
+    for para in b.meta.split("\n") if b.meta else []:
+        meta_lines.extend(wrap(para, "small", rest_avail))
     total = lh * len(lines) + _line_height("small") * len(meta_lines) + ITEM_GAP
     c.ensure(total)
     # checkbox vertically centred on the first line
