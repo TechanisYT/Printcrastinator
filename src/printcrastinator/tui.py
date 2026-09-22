@@ -41,7 +41,7 @@ class TaskRow(Static):
 
     def refresh_text(self) -> None:
         t = self.item
-        box = "[b green]☑[/b green]  " if self.done else "[b yellow]☐[/b yellow]  "
+        box = "[b green]\\[x][/b green] " if self.done else "[b yellow]\\[ ][/b yellow] "
         title = t["title"].replace("[", "\\[")
         if self.done:
             title = f"[strike]{title}[/strike]"
