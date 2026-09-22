@@ -85,6 +85,16 @@ def sec_dashboard(daemon: Daemon) -> None:
                         daemon.maybe_print_daily(force=True, reason="ui-force"), "daily"
                     ),
                 ).props("outline")
+                ui.button(
+                    "Print as cards",
+                    icon="content_cut",
+                    on_click=lambda: _run(
+                        daemon.maybe_print_daily(
+                            force=True, reason="ui-cards", layout_mode="cards"
+                        ),
+                        "cards",
+                    ),
+                ).props("outline").tooltip("Each task in its own block with cut lines")
         with ui.column().classes("gap-2 grow"):
             ui.label("Status").classes("text-lg font-bold")
             status_md = ui.markdown()
@@ -338,10 +348,15 @@ def sec_printer(daemon: Daemon) -> None:
     with ui.card().classes("w-full"):
         ui.label("Previews").classes("font-bold")
         with ui.row().classes("gap-4"):
-            for kind in ("sample", "empty", "slip"):
+            for kind, mode in (
+                ("sample", "list"),
+                ("sample", "cards"),
+                ("empty", "list"),
+                ("slip", ""),
+            ):
                 with ui.column():
-                    ui.label(kind)
-                    ui.image(f"/api/preview.png?kind={kind}").classes(
+                    ui.label(f"{kind} {mode}".strip())
+                    ui.image(f"/api/preview.png?kind={kind}&layout_mode={mode}").classes(
                         "w-[240px] border bg-white"
                     ).style("image-rendering: pixelated")
 
@@ -389,6 +404,20 @@ def sec_settings(daemon: Daemon, dark: ui.dark_mode) -> None:
         lang = ui.select(
             {"en": "English", "de": "Deutsch"}, value=cfg.ui.language, label="Receipt language"
         ).classes("w-48")
+        layout_sel = ui.select(
+            {"list": "Checklist (one continuous list)", "cards": "Cards (cut lines between tasks)"},
+            value=cfg.daily.layout,
+            label="Layout",
+        ).classes("w-80")
+        ui.label("Overdue filters, 0 = unlimited. Both can be combined.").classes(
+            "text-sm opacity-70 mt-2"
+        )
+        od_days = ui.number(
+            "Max days overdue", value=cfg.daily.overdue_max_days, min=0, max=3650
+        ).tooltip("Tasks overdue longer than this are left off the receipt")
+        od_count = ui.number(
+            "Max overdue tasks", value=cfg.daily.overdue_max_count, min=0, max=500
+        ).tooltip("Keeps the most recently due ones; a '+N older' line shows the rest")
     with ui.card().classes("w-full"):
         ui.label("New-task slips").classes("font-bold")
         s_tasks = ui.switch("Slips for Nextcloud Tasks", value=cfg.slips.enabled_tasks)
@@ -408,6 +437,11 @@ def sec_settings(daemon: Daemon, dark: ui.dark_mode) -> None:
         dark_sw = ui.switch(
             "Dark mode", value=cfg.ui.dark, on_change=lambda e: dark.set_value(bool(e.value))
         )
+        ui.button(
+            "Test notification",
+            icon="notifications_active",
+            on_click=lambda: ui.notify(daemon.test_notification(), type="info"),
+        ).props("outline")
 
     def save():
         cfg.nextcloud = replace(
@@ -420,6 +454,9 @@ def sec_settings(daemon: Daemon, dark: ui.dark_mode) -> None:
             cfg.daily,
             earliest_hour=int(earliest.value),
             print_calendar_only_days=bool(cal_only.value),
+            layout=layout_sel.value,
+            overdue_max_days=int(od_days.value),
+            overdue_max_count=int(od_count.value),
         )
         cfg.ui = replace(cfg.ui, language=lang.value, dark=bool(dark_sw.value))
         cfg.slips = replace(

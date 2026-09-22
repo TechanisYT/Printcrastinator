@@ -17,17 +17,18 @@ def _cmd_preview(args: argparse.Namespace) -> int:
 
     cfg = load_config()
     lang = args.lang or cfg.ui.language
+    mode = args.layout or cfg.daily.layout
     day = date.fromisoformat(args.day) if args.day else None
     if args.kind == "slip":
         receipt = layout.slip_receipt(layout.sample_slip_items(day), datetime.now(), lang)
     elif args.kind == "empty":
-        receipt = layout.daily_receipt(layout.empty_agenda(day), lang)
+        receipt = layout.daily_receipt(layout.empty_agenda(day), lang, mode)
     elif args.kind == "live":
         from .client import get_agenda_or_build
 
-        receipt = layout.daily_receipt(get_agenda_or_build(cfg), lang)
+        receipt = layout.daily_receipt(get_agenda_or_build(cfg), lang, mode)
     else:
-        receipt = layout.daily_receipt(layout.sample_agenda(day), lang)
+        receipt = layout.daily_receipt(layout.sample_agenda(day), lang, mode)
     img = image.render(receipt)
     out = Path(args.path)
     img.save(out)
@@ -77,7 +78,7 @@ def _cmd_show(args: argparse.Namespace) -> int:
 def _cmd_print_today(args: argparse.Namespace) -> int:
     from . import client
 
-    result = client.print_daily(load_config(), force=args.force)
+    result = client.print_daily(load_config(), force=args.force, layout=args.layout or "")
     print(result)
     return 0 if result.get("printed") or result.get("on_screen") else 1
 
@@ -111,6 +112,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("print-today", help="print today's receipt")
     s.add_argument("--force", action="store_true", help="ignore the once-per-day gate")
+    s.add_argument("--layout", choices=["list", "cards"], help="override the configured layout")
     s.set_defaults(func=_cmd_print_today)
 
     s = sub.add_parser("test-print", help="calibration receipt")
@@ -124,6 +126,7 @@ def build_parser() -> argparse.ArgumentParser:
     pv.add_argument("path")
     pv.add_argument("--kind", choices=["sample", "empty", "slip", "live"], default="sample")
     pv.add_argument("--lang", choices=["en", "de"])
+    pv.add_argument("--layout", choices=["list", "cards"], default=None)
     pv.add_argument("--day", help="ISO date for the sample")
     pv.add_argument("--open", action="store_true", help="open the PNG with xdg-open")
     pv.set_defaults(func=_cmd_preview)

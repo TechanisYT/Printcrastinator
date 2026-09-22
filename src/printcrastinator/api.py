@@ -26,23 +26,30 @@ def make_router(daemon: Daemon) -> APIRouter:
         return ag.to_dict()
 
     @r.get("/preview.png")
-    async def preview(kind: str = "live"):
+    async def preview(kind: str = "live", layout_mode: str = ""):
         lang = daemon.cfg.ui.language
+        mode = layout_mode or daemon.cfg.daily.layout
         if kind == "sample":
-            rc = layout.daily_receipt(layout.sample_agenda(), lang)
+            rc = layout.daily_receipt(layout.sample_agenda(), lang, mode)
         elif kind == "empty":
             rc = layout.daily_receipt(layout.empty_agenda(), lang)
         elif kind == "slip":
             rc = layout.slip_receipt(layout.sample_slip_items(), datetime.now(), lang)
         else:
-            rc = layout.daily_receipt(await daemon.agenda(), lang)
+            rc = layout.daily_receipt(await daemon.agenda(), lang, mode)
         buf = BytesIO()
         render_image.render(rc).save(buf, format="PNG")
         return Response(buf.getvalue(), media_type="image/png")
 
     @r.post("/print/daily")
-    async def print_daily(force: bool = False):
-        return await daemon.maybe_print_daily(force=force, reason="api")
+    async def print_daily(force: bool = False, layout_mode: str = ""):
+        return await daemon.maybe_print_daily(
+            force=force, reason="api", layout_mode=layout_mode or None
+        )
+
+    @r.post("/notify/test")
+    async def notify_test():
+        return {"result": daemon.test_notification()}
 
     @r.post("/print/test")
     async def print_test(sweep: bool = False):

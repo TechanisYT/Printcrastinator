@@ -190,6 +190,8 @@ class Daemon:
             suppressed=self.db.suppressed_keys(),
             always_lists=self.db.always_print_lists(),
             always_stacks=self.db.always_print_stacks(),
+            overdue_max_days=self.cfg.daily.overdue_max_days,
+            overdue_max_count=self.cfg.daily.overdue_max_count,
         )
 
     async def agenda(self, refresh: bool = False) -> DailyAgenda:
@@ -208,7 +210,12 @@ class Daemon:
         if self.cfg.screen.notify:
             notify.send(ag, self.cfg.ui.language)
 
-    async def maybe_print_daily(self, force: bool = False, reason: str = "poll") -> dict[str, Any]:
+    def test_notification(self) -> str:
+        return notify.send_test()
+
+    async def maybe_print_daily(
+        self, force: bool = False, reason: str = "poll", layout_mode: str | None = None
+    ) -> dict[str, Any]:
         today = date.today()
         now = datetime.now()
         if not force and now.hour < self.cfg.daily.earliest_hour:
@@ -232,7 +239,9 @@ class Daemon:
             self.db.log("daily", True, f"{reason}: nothing to print on paper")
             return {"printed": False, "reason": "no tasks", "on_screen": True}
         try:
-            img = render_image.render(layout.daily_receipt(ag, self.cfg.ui.language))
+            img = render_image.render(
+                layout.daily_receipt(ag, self.cfg.ui.language, layout_mode or self.cfg.daily.layout)
+            )
             await asyncio.to_thread(self.printer.print_image, img)
         except PrinterError as exc:
             if not force:

@@ -20,6 +20,8 @@ LABELS: dict[str, dict[str, str]] = {
         "late": "-{n}d",
         "due_prefix": "due",
         "today_word": "today",
+        "older_overdue": "+{n} older overdue not shown",
+        "cut": "cut",
     },
     "de": {
         "today": "HEUTE",
@@ -36,6 +38,8 @@ LABELS: dict[str, dict[str, str]] = {
         "late": "-{n}T",
         "due_prefix": "fällig",
         "today_word": "heute",
+        "older_overdue": "+{n} ältere überfällige nicht gezeigt",
+        "cut": "schneiden",
     },
 }
 

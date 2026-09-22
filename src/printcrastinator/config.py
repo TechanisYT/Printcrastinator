@@ -67,6 +67,12 @@ class PrinterConfig:
 class DailyConfig:
     earliest_hour: int = 6
     print_calendar_only_days: bool = False
+    # "list": one continuous checklist. "cards": every task in its own block separated by
+    # cut lines, for cutting up with scissors.
+    layout: str = "list"
+    # Overdue filters, 0 = unlimited. Both can be combined.
+    overdue_max_days: int = 0
+    overdue_max_count: int = 0
 
 
 @dataclass

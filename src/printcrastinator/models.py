@@ -73,6 +73,8 @@ class DailyAgenda:
     overdue: list[TaskItem] = field(default_factory=list)
     due_today: list[TaskItem] = field(default_factory=list)
     always: list[TaskGroup] = field(default_factory=list)
+    # overdue tasks left off by the overdue filters (still open in Nextcloud)
+    overdue_hidden: int = 0
 
     @property
     def always_items(self) -> list[TaskItem]:
@@ -99,6 +101,7 @@ class DailyAgenda:
             "always": [
                 {"title": g.title, "items": [t.to_dict() for t in g.items]} for g in self.always
             ],
+            "overdue_hidden": self.overdue_hidden,
             "has_tasks": self.has_tasks,
             "has_events": self.has_events,
         }

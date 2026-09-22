@@ -16,6 +16,8 @@ def build(
     suppressed: set[tuple[str, str]],
     always_lists: set[str],
     always_stacks: set[tuple[int, int]],
+    overdue_max_days: int = 0,
+    overdue_max_count: int = 0,
 ) -> DailyAgenda:
     overdue: list[TaskItem] = []
     due_today: list[TaskItem] = []
@@ -39,6 +41,13 @@ def build(
             groups.setdefault(t.list_name, TaskGroup(t.list_name)).items.append(t)
 
     overdue.sort(key=lambda t: (t.due, t.title.lower()))  # type: ignore[arg-type]
+    total_overdue = len(overdue)
+    if overdue_max_days > 0:
+        overdue = [t for t in overdue if t.days_late(day) <= overdue_max_days]
+    if overdue_max_count > 0 and len(overdue) > overdue_max_count:
+        # keep the most recently due ones; ancient tasks are the ones worth dropping
+        overdue = overdue[-overdue_max_count:]
+    overdue_hidden = total_overdue - len(overdue)
     due_today.sort(key=lambda t: t.title.lower())
     for g in groups.values():
         g.items.sort(key=lambda t: (t.due is None, t.due or day, t.title.lower()))
@@ -49,6 +58,7 @@ def build(
         overdue=overdue,
         due_today=due_today,
         always=[groups[k] for k in sorted(groups)],
+        overdue_hidden=overdue_hidden,
     )
 
 

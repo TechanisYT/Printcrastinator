@@ -63,3 +63,14 @@ def test_suppression_is_per_occurrence():
         always_stacks=set(),
     )
     assert ag.has_tasks
+
+
+def test_overdue_filters_combine():
+    tasks = [t(f"o{i}", f"Old {i}", DAY - timedelta(days=i)) for i in (1, 5, 20, 60, 400)]
+    kw = dict(suppressed=set(), always_lists=set(), always_stacks=set())
+    ag = agenda.build(DAY, tasks, [], [], **kw)
+    assert len(ag.overdue) == 5 and ag.overdue_hidden == 0
+    ag = agenda.build(DAY, tasks, [], [], overdue_max_days=30, **kw)
+    assert [x.uid for x in ag.overdue] == ["o20", "o5", "o1"] and ag.overdue_hidden == 2
+    ag = agenda.build(DAY, tasks, [], [], overdue_max_days=30, overdue_max_count=2, **kw)
+    assert [x.uid for x in ag.overdue] == ["o5", "o1"] and ag.overdue_hidden == 3

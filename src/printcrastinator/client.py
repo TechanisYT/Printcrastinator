@@ -97,13 +97,17 @@ def get_agenda_or_build(cfg: Config, refresh: bool = False) -> DailyAgenda:
         return asyncio.run(_local_daemon(cfg).agenda(refresh=True))
 
 
-def print_daily(cfg: Config, force: bool = False) -> dict[str, Any]:
+def print_daily(cfg: Config, force: bool = False, layout: str = "") -> dict[str, Any]:
     try:
-        return _call(cfg, "POST", "/api/print/daily", force=force)
+        return _call(cfg, "POST", "/api/print/daily", force=force, layout_mode=layout)
     except DaemonUnavailable:
         import asyncio
 
-        return asyncio.run(_local_daemon(cfg).maybe_print_daily(force=force, reason="cli-direct"))
+        return asyncio.run(
+            _local_daemon(cfg).maybe_print_daily(
+                force=force, reason="cli-direct", layout_mode=layout or None
+            )
+        )
 
 
 def print_test(cfg: Config, sweep: bool = False) -> None:

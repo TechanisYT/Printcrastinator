@@ -60,10 +60,14 @@ def _footer(r: Receipt, agenda: DailyAgenda, lang: str) -> None:
     r.add(Spacer(6), Rule(1), Spacer(8))
     if parts:
         r.add(Text(" · ".join(parts), "small", "center", wrap=False))
+    if agenda.overdue_hidden:
+        r.add(Text(i18n.label(lang, "older_overdue", n=agenda.overdue_hidden), "small", "center"))
     r.add(Text(f"“{i18n.quote_for(agenda.day)}”", "small", "center"), Spacer(16), TearLine())
 
 
-def daily_receipt(agenda: DailyAgenda, lang: str = "en") -> Receipt:
+def daily_receipt(agenda: DailyAgenda, lang: str = "en", layout: str = "list") -> Receipt:
+    if layout == "cards":
+        return cards_receipt(agenda, lang)
     r = Receipt()
     _header(r, agenda.day, lang)
     _events(r, agenda, lang)
@@ -88,6 +92,37 @@ def daily_receipt(agenda: DailyAgenda, lang: str = "en") -> Receipt:
         for t in group.items:
             r.add(CheckItem(t.title, right=_task_marker(t, agenda.day, lang)))
         r.add(Spacer(14))
+    _footer(r, agenda, lang)
+    return r
+
+
+def cards_receipt(agenda: DailyAgenda, lang: str = "en") -> Receipt:
+    """Every task in its own block with cut lines between, for scissors."""
+    r = Receipt()
+    _header(r, agenda.day, lang)
+    _events(r, agenda, lang)
+    if not agenda.has_tasks:
+        r.add(Text(i18n.label(lang, "no_tasks"), "body", "center"), Spacer(8))
+        _footer(r, agenda, lang)
+        return r
+    day = agenda.day
+
+    def card(t: TaskItem, section: str) -> None:
+        r.add(Spacer(10), TearLine(), Spacer(14))
+        marker = _task_marker(t, day, lang)
+        meta = " · ".join(
+            p for p in (section, t.list_name if t.source == "tasks" else "", marker) if p
+        )
+        r.add(CheckItem(t.title, meta=meta), Spacer(10))
+
+    for t in agenda.overdue:
+        card(t, i18n.label(lang, "overdue"))
+    for t in agenda.due_today:
+        card(t, i18n.label(lang, "due_today"))
+    for g in agenda.always:
+        for t in g.items:
+            card(t, g.title)
+    r.add(Spacer(10), TearLine(), Spacer(6))
     _footer(r, agenda, lang)
     return r
 

@@ -33,6 +33,32 @@ def summary_lines(agenda: DailyAgenda, lang: str = "en") -> tuple[str, str]:
     return title, "\n".join(body)
 
 
+def send_test() -> str:
+    """Send a test notification; returns a human readable result."""
+    exe = shutil.which("notify-send")
+    if not exe:
+        return "notify-send not found (install libnotify)"
+    try:
+        r = subprocess.run(
+            [
+                exe,
+                "--app-name=Printcrastinator",
+                "--icon=task-due",
+                "Printcrastinator test",
+                "If you can read this, notifications work.",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except Exception as exc:
+        return f"notify-send failed: {exc}"
+    if r.returncode != 0:
+        return f"notify-send exit {r.returncode}: {r.stderr.strip()}"
+    return "notification sent"
+
+
 def send(agenda: DailyAgenda, lang: str = "en") -> bool:
     exe = shutil.which("notify-send")
     if not exe:
