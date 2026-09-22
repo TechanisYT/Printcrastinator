@@ -275,9 +275,9 @@ class Daemon:
 
     # ---- printer helpers -------------------------------------------------------------------------
 
-    async def print_test(self) -> None:
-        await asyncio.to_thread(self.printer.print_calibration)
-        self.db.log("test", True, "calibration")
+    async def print_test(self, sweep: bool = False) -> None:
+        await asyncio.to_thread(self.printer.print_calibration, sweep)
+        self.db.log("test", True, "calibration" + (" sweep" if sweep else ""))
 
     async def feed(self, mm: int | None = None) -> None:
         await asyncio.to_thread(self.printer.feed, mm)

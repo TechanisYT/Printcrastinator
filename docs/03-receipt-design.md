@@ -77,10 +77,13 @@ events). Screen shows "No tasks for today" and the calendar.
 
 ## Calibration receipt (`test-print`)
 
-Text mode: 32-column ruler, `Zähne Über Straße € ß` in the fallback code page, then the
-same string rendered as an image, a density sweep (ESC 7 heating settings and GS ( E where
-supported) with labelled blocks, and a 24 px checkbox row. The working density becomes
-`printer.density`.
+Text mode: 32-column ruler, `Zähne Über Straße € ß` in the fallback code page, then one
+image block with the same string, a headline sample and a 24 px checkbox row. With `--sweep`
+(or the "Density sweep" button) one extra block per density preset (ESC 7 and DC2 # variants)
+follows, each labelled; the best one becomes `printer.density`.
+
+Feeding uses plain line feeds (about 4 mm each) because ESC J is ignored by some printers.
+`printer.feed_after_mm` (default 40) leaves room to tear off by hand without cutting text.
 
 ## Iterating on the design
 

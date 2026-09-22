@@ -85,7 +85,7 @@ def _cmd_print_today(args: argparse.Namespace) -> int:
 def _cmd_test_print(args: argparse.Namespace) -> int:
     from . import client
 
-    client.print_test(load_config())
+    client.print_test(load_config(), sweep=args.sweep)
     print("calibration receipt sent")
     return 0
 
@@ -114,6 +114,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(func=_cmd_print_today)
 
     s = sub.add_parser("test-print", help="calibration receipt")
+    s.add_argument("--sweep", action="store_true", help="also print one block per density preset")
     s.set_defaults(func=_cmd_test_print)
 
     s = sub.add_parser("notify", help="desktop notification for today")

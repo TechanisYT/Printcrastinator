@@ -45,9 +45,9 @@ def make_router(daemon: Daemon) -> APIRouter:
         return await daemon.maybe_print_daily(force=force, reason="api")
 
     @r.post("/print/test")
-    async def print_test():
+    async def print_test(sweep: bool = False):
         try:
-            await daemon.print_test()
+            await daemon.print_test(sweep)
         except PrinterError as exc:
             raise HTTPException(503, str(exc)) from exc
         return {"ok": True}

@@ -106,11 +106,11 @@ def print_daily(cfg: Config, force: bool = False) -> dict[str, Any]:
         return asyncio.run(_local_daemon(cfg).maybe_print_daily(force=force, reason="cli-direct"))
 
 
-def print_test(cfg: Config) -> None:
+def print_test(cfg: Config, sweep: bool = False) -> None:
     try:
-        _call(cfg, "POST", "/api/print/test")
+        _call(cfg, "POST", "/api/print/test", sweep=sweep)
     except DaemonUnavailable:
-        _local_daemon(cfg).printer.print_calibration()
+        _local_daemon(cfg).printer.print_calibration(sweep)
 
 
 def notify(cfg: Config) -> None:

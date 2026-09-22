@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import date
 
 from escpos.printer import Dummy, File
 from PIL import Image
@@ -77,11 +76,13 @@ class Printer:
         return p
 
     def _feed_mm(self, p: File, mm: int) -> None:
-        dots = mm * DOTS_PER_MM
-        while dots > 0:
-            n = min(dots, 255)
-            p._raw(ESC + b"J" + bytes([n]))
-            dots -= n
+        """Feed with plain line feeds (ESC J is ignored by some cheap printers).
+
+        Default line spacing is 1/6 inch, about 4.2 mm per line.
+        """
+        lines = -(-mm // 4)
+        if lines > 0:
+            p._raw(b"\n" * lines)
 
     def _send_image(self, p: File, img: Image.Image) -> None:
         if img.width != self.cfg.width_px:
@@ -123,8 +124,11 @@ class Printer:
         except Exception as exc:
             raise PrinterError(str(exc)) from exc
 
-    def print_calibration(self, today: date | None = None) -> None:
-        """Calibration receipt: text ruler + umlauts, then image samples and a density sweep."""
+    def print_calibration(self, sweep: bool = False) -> None:
+        """Calibration receipt: text ruler + umlauts and one image block.
+
+        With sweep=True, one extra block per density preset follows.
+        """
         p = self._open()
         try:
             p.charcode(self.cfg.fallback_codepage)
@@ -135,10 +139,12 @@ class Printer:
             p.text("12345678901234567890123456789012\n")
             p.text("Zähne Über Straße € ß\n\n")
             p.flush()
-            self._send_image(p, calibration_image("image mode, default density"))
-            for key in list(DENSITY_PRESETS)[1:]:
-                p._raw(DENSITY_PRESETS[key])
-                self._send_image(p, calibration_image(f"density {key}"))
+            label = f"image mode, density {self.cfg.density or 'default'}"
+            self._send_image(p, calibration_image(label))
+            if sweep:
+                for key in list(DENSITY_PRESETS)[1:]:
+                    p._raw(DENSITY_PRESETS[key])
+                    self._send_image(p, calibration_image(f"density {key}"))
             self._finish(p)
         except Exception as exc:
             raise PrinterError(str(exc)) from exc

@@ -12,6 +12,7 @@
 | Printer | test print, feed, density selector, feed-after-mm, device path |
 | Settings | Nextcloud URL / user / app password, test connection, poll interval, earliest hour, calendar-only days, slip toggles, screen output toggles, language |
 
+Single page: sections are swapped in place without reloads. Dark mode by default, toggle in Settings (`ui.dark`).
 `ui.run(host="127.0.0.1", port=8555, reload=False, show=False)`.
 
 ## HTTP API (same port, JSON)
@@ -34,7 +35,7 @@
 | `serve` | daemon + web UI (used by the systemd unit) |
 | `show` | trigger daily check via API, render agenda in the terminal with rich, wait for a key |
 | `print-today [--force]` | via API; direct fallback if daemon down |
-| `test-print` | calibration receipt |
+| `test-print [--sweep]` | calibration receipt; `--sweep` adds one block per density preset |
 | `preview PATH [--sample\|--empty\|--slip]` | write receipt PNG, no printer needed |
 | `notify` | desktop notification |
 
