@@ -85,7 +85,7 @@ image block with the same string, a headline sample and a 24 px checkbox row. Wi
 follows, each labelled; the best one becomes `printer.density`.
 
 Feeding uses plain line feeds (about 4 mm each) because ESC J is ignored by some printers.
-`printer.feed_after_mm` (default 40) leaves room to tear off by hand without cutting text.
+`printer.feed_after_mm` (default 10) leaves room to tear off by hand without cutting text.
 
 ## Iterating on the design
 

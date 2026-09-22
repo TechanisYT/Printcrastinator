@@ -55,7 +55,7 @@ class PrinterConfig:
     band_lines: int = 64
     lines_per_second: int = 200
     # Paper feed after the last printed line so the tear line reaches the tear bar.
-    feed_after_mm: int = 40
+    feed_after_mm: int = 10
     # Heating density chosen with test-print. None = printer default.
     # "esc7:<n1>,<n2>,<n3>" or "gse:<level>" (see printer/escpos_out.py).
     density: str = ""
