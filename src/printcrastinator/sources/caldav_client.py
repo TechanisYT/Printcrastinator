@@ -244,6 +244,11 @@ class CalDavClient:
         location: str = "",
     ) -> str:
         cal = self._collection(calendar_id, vtodo=False)
+        tz = datetime.now().astimezone().tzinfo
+        if isinstance(start, datetime) and start.tzinfo is None:
+            start = start.replace(tzinfo=tz)  # naive times are local, not UTC
+        if isinstance(end, datetime) and end.tzinfo is None:
+            end = end.replace(tzinfo=tz)
         if end is None:
             end = start + (
                 timedelta(days=1) if not isinstance(start, datetime) else timedelta(hours=1)

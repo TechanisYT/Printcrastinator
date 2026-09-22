@@ -2,42 +2,45 @@
 
 ## Web UI (NiceGUI, http://127.0.0.1:8555)
 
-| Page | Content |
+Single page; the left menu swaps sections in place (menu button on narrow screens). Dark mode
+by default, toggle in Settings.
+
+| Section | Content |
 |---|---|
-| Dashboard | today's receipt preview (PNG), "Print today now", "Reprint", last prints, log tail, daemon status |
-| Tasks | current candidate tasks (source, list, due, status) with a "hide" switch per row; hidden list with unhide |
+| Dashboard | receipt preview, "Print today now", "Reprint (force)", "Print as cards", status, poll, notify, log |
+| Tasks | current candidate tasks with a hide switch per occurrence; hidden list with unhide |
 | Deck | boards → stacks with an "always print" switch each |
 | Task lists | Nextcloud Tasks lists with an "always print" switch each |
-| Calendars | calendars with an "include" switch each |
-| Printer | test print, feed, density selector, feed-after-mm, device path |
-| Settings | Nextcloud URL / user / app password, test connection, poll interval, earliest hour, calendar-only days, slip toggles, screen output toggles, language |
-
-Single page: sections are swapped in place without reloads. Dark mode by default, toggle in Settings (`ui.dark`).
-`ui.run(host="127.0.0.1", port=8555, reload=False, show=False)`.
+| Calendars | Nextcloud and extra calendars with an "include" switch each |
+| Printer | device, width, band lines, send speed, feed, density, code page; test print, density sweep, feed, sample; previews |
+| Settings | Nextcloud credentials + test; extra calendars; daily receipt options (earliest hour, calendar-only days, language, layout, overdue filters, grouping, notes); quotes editor; logo upload; slips; AI; on-screen options with test buttons |
 
 ## HTTP API (same port, JSON)
 
 | Route | Effect |
 |---|---|
-| `GET /api/status` | daemon health, printer reachable (best effort), last poll |
-| `GET /api/agenda` | today's agenda |
-| `GET /api/preview.png?kind=daily|empty|slip` | rendered receipt image |
-| `POST /api/print/daily?force=false` | run the daily gate (force ignores gate) |
-| `POST /api/print/test` | calibration receipt |
-| `POST /api/printer/feed` | feed paper |
-| `POST /api/notify` | send desktop notification for today's agenda |
-| `POST /api/poll` | poll now |
+| `GET /api/status` | daemon health, printer state, counts, today's print |
+| `GET /api/agenda?refresh=` | today's agenda |
+| `GET /api/preview.png?kind=live\|sample\|empty\|slip&layout_mode=` | rendered receipt |
+| `POST /api/print/daily?force=&layout_mode=` | daily gate / forced print (silent) |
+| `POST /api/print/test?sweep=` · `POST /api/printer/feed` · `POST /api/printer/action?action=` | printer actions |
+| `POST /api/notify` · `POST /api/notify/test` · `POST /api/test/cycle` | screen output tests, full morning cycle |
+| `POST /api/poll` | fetch now |
+| `GET /api/tasks` | open tasks with uids, suppression keys, lists/stacks |
+| `POST /api/tasks/{uid}/done?done=` | complete / reopen |
+| `POST /api/tasks/{uid}/edit` · `POST /api/tasks` | edit / create with all fields |
+| `GET /api/calendars` · `POST /api/events` | writable calendars / create event |
+| `GET /api/settings` · `POST /api/settings` | read (password masked) / change one setting |
+| `GET /api/ai/status` · `POST /api/ai/summary` · `POST /api/ai/chat` | AI |
 
-## CLI (`printcrastinator ...`)
+## CLI (`printcrastinator …`, or `pc …`)
 
 | Command | Behaviour |
 |---|---|
-| `serve` | daemon + web UI (used by the systemd unit) |
-| `show` | trigger daily check via API, render agenda in the terminal with rich, wait for a key |
-| `print-today [--force]` | via API; direct fallback if daemon down |
-| `test-print [--sweep]` | calibration receipt; `--sweep` adds one block per density preset |
-| `preview PATH [--sample\|--empty\|--slip]` | write receipt PNG, no printer needed |
+| `serve` | daemon + web UI (systemd) |
+| `show` (default for `pc`) | interactive terminal view; `--plain` static output, `--no-wait` |
+| `print-today [--force] [--layout list\|cards]` | via API; direct fallback if daemon down |
+| `test-print [--sweep]` | calibration receipt |
+| `preview PATH [--kind …] [--layout …] [--lang …] [--open]` | write receipt PNG, no printer needed |
 | `notify` | desktop notification |
-
-All commands except `serve` and `preview` try the API first and fall back to running the same
-code in-process when the daemon is not reachable.
+| `mcp` | MCP server on stdio |

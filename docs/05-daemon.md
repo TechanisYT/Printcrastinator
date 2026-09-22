@@ -41,8 +41,11 @@ path.
 - every poll tick
 - D-Bus `org.freedesktop.login1.Manager.PrepareForSleep(false)` (resume)
 - D-Bus session `Unlock` on `org.freedesktop.login1.Session`
-- `printcrastinator show` (via API)
-- `POST /api/print/daily`
+- `printcrastinator show` / the terminal view (via API, silent)
+- `POST /api/print/daily` (silent)
+
+Only the poll loop, wake/unlock triggers and the "full morning cycle" test pass `screen=True`,
+which sends the notification and opens the terminal window.
 
 ## Polling and new-task slips
 

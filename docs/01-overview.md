@@ -17,7 +17,11 @@ accomplishment, so the receipt is designed for a pen: drawn checkboxes, heavy ty
   get collected for 60 s and printed together on one slip.
 - **A local web UI** (http://127.0.0.1:8555) holds the Nextcloud credentials, lets you hide
   individual tasks from the prints, mark Deck stacks and Tasks lists as "always print",
-  choose calendars, preview the receipt as an image and trigger test prints.
+  choose calendars, add extra calendars, upload logos, edit quotes, tune the printer, preview
+  the receipt and trigger tests.
+- **An interactive terminal view** (`pc`) shows the same agenda; clicking a task completes it
+  in Nextcloud. A local AI (Ollama) gives a briefing and executes natural-language commands;
+  an MCP server exposes the same tools to external agents.
 
 ## What counts as "today"
 
@@ -30,6 +34,10 @@ Hidden tasks are excluded. Hiding is per occurrence (uid + due date) so hiding o
 a recurring task does not hide future ones.
 
 ## Decisions taken (2026-09-22)
+
+- Terminal view with Textual; optimistic completion (flip first, revert on error).
+- Local AI through Ollama with tool calling; model thinking disabled by default for speed.
+- Manual prints are silent; only the automatic morning trigger opens the window and notifies.
 
 - Python 3.13+/3.14 managed with `uv`; NiceGUI for the web UI; python-escpos for the printer.
 - Receipts are **rendered as raster images** (Pillow, 384 px wide, 1-bit, no dithering) and

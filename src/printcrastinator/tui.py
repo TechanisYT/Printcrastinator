@@ -97,8 +97,9 @@ class TaskView(App):
         Binding("escape", "unfocus", show=False),
     ]
 
-    def __init__(self, cfg: Config | None = None) -> None:
+    def __init__(self, cfg: Config | None = None, read_only: bool = False) -> None:
         super().__init__()
+        self.read_only = read_only  # tests: never write to Nextcloud
         self.cfg = cfg or load_config()
         self.lang = self.cfg.ui.language
         self.history: list[dict[str, str]] = []
@@ -238,7 +239,7 @@ class TaskView(App):
     @work(group="toggle")
     async def toggle_task(self, row: TaskRow) -> None:
         """Optimistic: flip immediately, revert with an error only if Nextcloud refuses."""
-        if row.busy:
+        if row.busy or self.read_only:
             return
         target = not row.done
         row.done = target

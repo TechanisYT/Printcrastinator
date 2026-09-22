@@ -41,6 +41,11 @@ Either can be disabled in Settings (`screen.terminal`, `screen.notify`).
 `packaging/printcrastinator-show.desktop` is an optional autostart entry that opens the window
 at every login regardless of whether today was already printed; not installed by default.
 
+## `pc` launcher
+
+`packaging/pc` is installed to `~/.local/bin/pc`: `pc` opens the terminal view, `pc <command>`
+runs any subcommand through `uv run --project ~/.local/share/printcrastinator/src`.
+
 ## Install checklist
 
 1. `sudo pacman -S uv libnotify` (alacritty already present)
@@ -49,4 +54,4 @@ at every login regardless of whether today was already printed; not installed by
 4. `uv run printcrastinator test-print`, pick density and feed-after-mm in the web UI
 5. `systemctl --user enable --now printcrastinator.service`, open http://127.0.0.1:8555,
    enter Nextcloud URL, user and app password, test connection
-6. copy the autostart desktop file
+6. optional: copy the autostart desktop file (the daemon already opens the window)
