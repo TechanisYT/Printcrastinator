@@ -198,6 +198,16 @@ def build_server():
         return _api("POST", "/api/printer/action", params={"action": action})
 
     @srv.tool()
+    def birthdays(days: int = 14) -> dict:
+        """Birthdays of the next N days from the contacts birthday calendar."""
+        return _api("GET", "/api/birthdays", params={"days": days})
+
+    @srv.tool()
+    def print_birthdays(days: int = 14) -> dict:
+        """Print the birthdays of the next N days as a receipt."""
+        return _api("POST", "/api/print/birthdays", params={"days": days})
+
+    @srv.tool()
     def custom_lists() -> dict:
         """Saved custom lists (shopping lists etc.) with items and print state."""
         return _api("GET", "/api/lists")

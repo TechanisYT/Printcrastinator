@@ -780,6 +780,27 @@ class Daemon:
             await self._refresh_sources(date.today())
             self.last_poll_at = time.time()
 
+    async def birthdays_for(self, days: int) -> list[Birthday]:
+        today = date.today()
+        cal = CalDavClient(self.cfg.nextcloud, self.db)
+        return await asyncio.to_thread(
+            cal.fetch_birthdays,
+            self.cfg.daily.birthdays_calendar,
+            today,
+            today + timedelta(days=max(0, days)),
+        )
+
+    async def print_birthdays(self, days: int) -> dict[str, Any]:
+        bdays = await self.birthdays_for(days)
+        img = render_image.render(
+            layout.birthdays_receipt(
+                bdays, date.today(), days, self.cfg.ui.language, self.layout_options()
+            )
+        )
+        await asyncio.to_thread(self.printer.print_image, img)
+        self.db.log("birthdays", True, f"next {days} days: {len(bdays)}")
+        return {"printed": True, "days": days, "birthdays": len(bdays)}
+
     # ---- custom lists and tickets --------------------------------------------------------
 
     async def print_custom_list(self, list_id: int) -> dict[str, Any]:

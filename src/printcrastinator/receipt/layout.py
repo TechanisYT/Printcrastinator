@@ -339,6 +339,44 @@ def calendar_receipt(
     return r
 
 
+def birthdays_receipt(
+    bdays: list, day: date, days: int, lang: str = "en", opt: Options | None = None
+) -> Receipt:
+    """Birthdays of the next `days` days as their own receipt."""
+    from ..models import Birthday  # noqa: F401
+
+    opt = opt or Options()
+    r = Receipt()
+    if opt.logo:
+        r.add(Picture(opt.logo, opt.logo_max_height, opt.logo_dither), Spacer(10))
+    r.add(Rule(3), Spacer(8), Text(i18n.label(lang, "birthdays"), "section", "center"))
+    until = day + timedelta(days=days)
+    r.add(
+        Text(
+            f"{i18n.date_line(lang, day)} – {i18n.date_line(lang, until)}",
+            "small",
+            "center",
+            wrap=False,
+        ),
+        Spacer(6),
+        Rule(3),
+        Spacer(12),
+    )
+    if not bdays:
+        r.add(Text("—", "body", "center"))
+    for b in bdays:
+        delta = (b.day - day).days
+        when = (
+            i18n.label(lang, "today_word") if delta == 0 else i18n.label(lang, "in_days", n=delta)
+        )
+        meta_parts = [f"{i18n.weekday_name(lang, b.day)[:2]} {b.day.strftime('%d.%m.')}"]
+        if b.age:
+            meta_parts.append(i18n.label(lang, "turns", n=b.age))
+        r.add(EventLine(when, b.name, meta=" · ".join(meta_parts)))
+    r.add(Spacer(10), Rule(1), Spacer(12), TearLine())
+    return r
+
+
 def list_receipt(
     title: str, items: list[str], day: date, lang: str = "en", opt: Options | None = None
 ) -> Receipt:

@@ -72,6 +72,21 @@ TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "birthdays",
+            "description": (
+                "Birthdays of the next N days from the contacts birthday calendar. "
+                "action: show (list them) or print (print them as a receipt)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {"action": {"type": "string"}, "days": {"type": "integer"}},
+                "required": ["action"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "lists",
             "description": (
                 "Saved custom lists (shopping list, packing list …). action: show | save | add | "
@@ -439,6 +454,8 @@ GUIDELINES = (
     "frame, overdue items or a keyword. 'print the tasks for X' means ALL open tasks of X.\n"
     "- When unsure what a filter matches, call preview_tasks first, then print_tasks.\n"
     "- Report the 'count' the tool returns; do not count items yourself.\n"
+    "- 'print/show birthdays for the next 2 weeks' -> birthdays(action, days=14). "
+    "'How far ahead are birthdays shown' is the setting daily.birthdays_lookahead.\n"
     "- Custom lists: 'add milk and eggs to the shopping list' -> lists(add, title='shopping "
     "list', items=[...]); 'print the shopping list' -> lists(print). Lists are saved until "
     "deleted; create one with save when it does not exist yet.\n"
@@ -586,6 +603,20 @@ class Assistant:
             if name == "delete_event":
                 await d.delete_event(args["uid"])
                 return f"event deleted: {args['uid'][:8]}"
+            if name == "birthdays":
+                days = int(args.get("days") or d.cfg.daily.birthdays_lookahead)
+                if args.get("action") == "print":
+                    return json.dumps(await d.print_birthdays(days))
+                bd = await d.birthdays_for(days)
+                return json.dumps(
+                    {
+                        "count": len(bd),
+                        "birthdays": [
+                            f"{b.name} {b.day.isoformat()}" + (f" turns {b.age}" if b.age else "")
+                            for b in bd
+                        ],
+                    }
+                )
             if name == "lists":
                 act = args.get("action", "show")
                 title = (args.get("title") or "").strip()

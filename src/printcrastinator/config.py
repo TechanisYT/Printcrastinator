@@ -79,8 +79,8 @@ class PrinterConfig:
     width_px: int = 384
     # Raster data is sent in bands of this many dot lines, paced to lines_per_second so the
     # printer's small buffer never overflows (cheap printers reset on USB when flooded).
-    band_lines: int = 64
-    lines_per_second: int = 200
+    band_lines: int = 128
+    lines_per_second: int = 400
     # Paper feed after the last printed line so the tear line reaches the tear bar.
     feed_after_mm: int = 10
     # Heating density chosen with test-print. None = printer default.

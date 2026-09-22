@@ -330,6 +330,17 @@ def make_router(daemon: Daemon) -> APIRouter:
         )
         return Response(buf.getvalue(), media_type="image/png")
 
+    @r.get("/birthdays")
+    async def birthdays(days: int = 14):
+        return {"birthdays": [b.to_dict() for b in await daemon.birthdays_for(days)]}
+
+    @r.post("/print/birthdays")
+    async def print_birthdays(days: int = 14):
+        try:
+            return await daemon.print_birthdays(days)
+        except PrinterError as exc:
+            raise HTTPException(503, str(exc)) from exc
+
     @r.post("/print/sample")
     async def print_sample(layout_mode: str = ""):
         rc = layout.daily_receipt(
