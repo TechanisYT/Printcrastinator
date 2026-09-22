@@ -229,23 +229,16 @@ class TaskView(App):
             kids = []
             for b in a["birthdays"]:
                 delta = (date.fromisoformat(b["day"]) - today).days
-                when = (
-                    i18n.label(self.lang, "today_word")
-                    if delta == 0
-                    else f"{i18n.label(self.lang, 'in_days', n=delta)} · {b['day'][8:10]}.{b['day'][5:7]}."
-                )
-                age = (
-                    f"  [dim]{i18n.label(self.lang, 'turns', n=b['age'])}[/dim]"
-                    if b.get("age")
-                    else ""
-                )
-                style = "[b]" if delta == 0 else ""
-                kids.append(
-                    Static(
-                        f"[magenta]{when:<14}[/magenta] {style}🎂 {b['name']}{'[/b]' if style else ''}{age}",
-                        classes="event",
-                    )
-                )
+                if delta == 0:
+                    when = i18n.label(self.lang, "today_word")
+                else:
+                    when = i18n.label(self.lang, "in_days", n=delta)
+                    when += f" · {b['day'][8:10]}.{b['day'][5:7]}."
+                age = ""
+                if b.get("age"):
+                    age = f"  [dim]{i18n.label(self.lang, 'turns', n=b['age'])}[/dim]"
+                name = f"[b]🎂 {b['name']}[/b]" if delta == 0 else f"🎂 {b['name']}"
+                kids.append(Static(f"[magenta]{when:<14}[/magenta] {name}{age}", classes="event"))
             groups.append(
                 self._group(i18n.label(self.lang, "birthdays"), len(a["birthdays"]), kids)
             )
