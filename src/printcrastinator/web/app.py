@@ -468,12 +468,13 @@ def build(daemon: Daemon) -> None:
         title = None
         nav_buttons: dict[str, ui.button] = {}
 
+        drawer = ui.left_drawer(value=None).props("width=210 bordered breakpoint=800")
         with ui.header().classes("items-center"):
+            ui.button(icon="menu", on_click=drawer.toggle).props("flat round dense color=white")
             ui.icon("receipt_long").classes("text-2xl")
             ui.label("Printcrastinator").classes("text-lg font-bold")
             ui.space()
             title = ui.label("").classes("text-sm opacity-70")
-        drawer = ui.left_drawer(value=True).props("width=210 bordered")
         content = ui.column().classes("w-full max-w-4xl gap-4 p-2")
 
         def show(key: str) -> None:
@@ -486,10 +487,16 @@ def build(daemon: Daemon) -> None:
             with content:
                 builders[key]()
 
+        async def navigate(key: str) -> None:
+            show(key)
+            # on narrow screens the drawer overlays the content: close it after choosing
+            if await ui.run_javascript("window.innerWidth", timeout=2) < 800:
+                drawer.hide()
+
         with drawer:
             for key, name, icon in SECTIONS:
                 nav_buttons[key] = (
-                    ui.button(name, icon=icon, on_click=lambda k=key: show(k))
+                    ui.button(name, icon=icon, on_click=lambda k=key: navigate(k))
                     .props("flat align=left no-caps")
                     .classes("w-full")
                 )
