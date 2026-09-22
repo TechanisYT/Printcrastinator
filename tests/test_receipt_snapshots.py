@@ -50,4 +50,4 @@ def test_png_roundtrip_is_bilevel():
     img = image.render(_cases()["sample_en"])
     buf = BytesIO()
     img.save(buf, format="PNG")
-    assert set(Image.open(BytesIO(buf.getvalue())).convert("L").getdata()) <= {0, 255}
+    assert set(Image.open(BytesIO(buf.getvalue())).convert("L").tobytes()) <= {0, 255}
