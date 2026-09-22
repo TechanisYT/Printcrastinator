@@ -144,15 +144,16 @@ def _section(c: _Canvas, b: SectionHeader) -> None:
 
 
 def _subheader(c: _Canvas, b: SubHeader) -> None:
-    lh = _line_height("small")
-    c.ensure(lh + 6)
-    c.y += 2
-    _draw_text(c, MARGIN, b.text, "small")
-    w = text_width(b.text, "small")
-    # thin rule to the right of the label
-    if MARGIN + w + 8 < WIDTH - MARGIN:
-        c.draw.rectangle((MARGIN + w + 8, c.y + lh // 2, WIDTH - MARGIN - 1, c.y + lh // 2), fill=0)
-    c.y += lh + 4
+    """List/board label inside a section: bold body text with a 2 px rule underneath."""
+    lh = _line_height("body")
+    lines = wrap(b.text, "body", WIDTH - 2 * MARGIN)
+    c.ensure(10 + lh * len(lines) + 2 + 8)
+    c.y += 10
+    for line in lines:
+        _draw_text(c, MARGIN, line, "body")
+        c.y += lh
+    c.draw.rectangle((MARGIN, c.y, WIDTH - MARGIN - 1, c.y + 1), fill=0)
+    c.y += 2 + 8
 
 
 def _event(c: _Canvas, b: EventLine) -> None:
