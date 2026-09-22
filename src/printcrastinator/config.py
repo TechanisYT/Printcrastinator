@@ -50,7 +50,10 @@ class NextcloudConfig:
 class PrinterConfig:
     device: str = "/dev/usb/lp0"
     width_px: int = 384
-    band_lines: int = 150
+    # Raster data is sent in bands of this many dot lines, paced to lines_per_second so the
+    # printer's small buffer never overflows (cheap printers reset on USB when flooded).
+    band_lines: int = 64
+    lines_per_second: int = 200
     # Paper feed after the last printed line so the tear line reaches the tear bar.
     feed_after_mm: int = 40
     # Heating density chosen with test-print. None = printer default.

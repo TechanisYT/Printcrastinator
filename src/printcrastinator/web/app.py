@@ -279,7 +279,13 @@ def sec_printer(daemon: Daemon) -> None:
         ui.label("Device").classes("font-bold")
         dev = ui.input("Device path", value=cfg.printer.device).classes("w-96")
         width = ui.number("Width (px)", value=cfg.printer.width_px, min=200, max=832, step=8)
-        band = ui.number("Band lines", value=cfg.printer.band_lines, min=16, max=1024, step=1)
+        band = ui.number("Band lines", value=cfg.printer.band_lines, min=8, max=1024, step=8)
+        lps = ui.number(
+            "Send speed (dot lines per second)",
+            value=cfg.printer.lines_per_second,
+            min=20,
+            max=2000,
+        ).tooltip("Lower this if the printer resets or drops data on long receipts")
         feed = ui.number(
             "Feed after print (mm)", value=cfg.printer.feed_after_mm, min=0, max=150
         ).tooltip("Space below the last line so you can tear off without cutting into text")
@@ -300,6 +306,7 @@ def sec_printer(daemon: Daemon) -> None:
                 device=dev.value.strip(),
                 width_px=int(width.value),
                 band_lines=int(band.value),
+                lines_per_second=int(lps.value),
                 feed_after_mm=int(feed.value),
                 density=density.value or "",
                 fallback_codepage=codepage.value.strip() or "CP858",

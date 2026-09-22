@@ -5,8 +5,11 @@ Raster path: Receipt -> PIL image -> ESC/POS raster bands. Text path: calibratio
 
 from __future__ import annotations
 
+import errno
 import logging
 import os
+import threading
+import time
 
 from escpos.printer import Dummy, File
 from PIL import Image
@@ -55,6 +58,10 @@ class PrinterError(RuntimeError):
 
 
 class Printer:
+    """One printer job at a time; the device is always closed, even on failure."""
+
+    _lock = threading.Lock()
+
     def __init__(self, cfg: PrinterConfig) -> None:
         self.cfg = cfg
 
@@ -65,15 +72,33 @@ class Printer:
             raise PrinterError(f"printer device {self.cfg.device} not found")
         if not os.access(self.cfg.device, os.W_OK):
             raise PrinterError(f"no write access to {self.cfg.device} (udev rule / lp group?)")
-        try:
-            p = File(self.cfg.device, auto_flush=False)
-        except Exception as exc:  # pragma: no cover - hardware
-            raise PrinterError(f"cannot open {self.cfg.device}: {exc}") from exc
+        last: Exception | None = None
+        for _ in range(5):
+            try:
+                p = File(self.cfg.device, auto_flush=False)
+                break
+            except Exception as exc:  # pragma: no cover - hardware
+                last = exc
+                if getattr(getattr(exc, "__cause__", None), "errno", None) == errno.EBUSY or (
+                    "busy" in str(exc).lower()
+                ):
+                    time.sleep(1.0)
+                    continue
+                raise PrinterError(f"cannot open {self.cfg.device}: {exc}") from exc
+        else:
+            raise PrinterError(f"{self.cfg.device} stays busy: {last}") from last
         p._raw(ESC + b"@")  # initialise
         d = density_bytes(self.cfg.density)
         if d:
             p._raw(d)
         return p
+
+    @staticmethod
+    def _close_quietly(p: File) -> None:
+        try:
+            p.close()
+        except Exception as exc:  # device may have vanished mid-job
+            log.warning("closing printer failed: %s", exc)
 
     def _feed_mm(self, p: File, mm: int) -> None:
         """Feed with plain line feeds (ESC J is ignored by some cheap printers).
@@ -85,52 +110,70 @@ class Printer:
             p._raw(b"\n" * lines)
 
     def _send_image(self, p: File, img: Image.Image) -> None:
+        """Send the image in bands, flushing each and pacing to the print speed."""
         if img.width != self.cfg.width_px:
             img = img.resize((self.cfg.width_px, int(img.height * self.cfg.width_px / img.width)))
-        p.image(img, impl="bitImageRaster", fragment_height=self.cfg.band_lines, center=False)
+        band = max(8, self.cfg.band_lines)
+        delay = band / max(1, self.cfg.lines_per_second)
+        for y in range(0, img.height, band):
+            part = img.crop((0, y, img.width, min(y + band, img.height)))
+            p.image(part, impl="bitImageRaster", fragment_height=band, center=False)
+            p.flush()
+            time.sleep(delay)
 
     def _finish(self, p: File) -> None:
         self._feed_mm(p, self.cfg.feed_after_mm)
         p.flush()
-        p.close()
 
     # ---- public --------------------------------------------------------------------------
 
+    def _job(self, fn) -> None:
+        """Run fn(p) with the device open, serialised, always closed."""
+        with self._lock:
+            p = self._open()
+            try:
+                fn(p)
+            except PrinterError:
+                raise
+            except Exception as exc:
+                raise PrinterError(str(exc)) from exc
+            finally:
+                self._close_quietly(p)
+
     def print_image(self, img: Image.Image) -> None:
         """Raise PrinterError on failure. Success = open and write did not raise."""
-        p = self._open()
-        try:
+
+        def go(p: File) -> None:
             self._send_image(p, img)
             self._finish(p)
-        except PrinterError:
-            raise
-        except Exception as exc:
-            raise PrinterError(str(exc)) from exc
+
+        self._job(go)
 
     def feed(self, mm: int | None = None) -> None:
-        p = self._open()
-        self._feed_mm(p, mm if mm is not None else self.cfg.feed_after_mm)
-        p.flush()
-        p.close()
+        def go(p: File) -> None:
+            self._feed_mm(p, mm if mm is not None else self.cfg.feed_after_mm)
+            p.flush()
+
+        self._job(go)
 
     def print_text_fallback(self, lines: list[str]) -> None:
         """Plain text path with explicit code page. Used only when rendering fails."""
-        p = self._open()
-        try:
+
+        def go(p: File) -> None:
             p.charcode(self.cfg.fallback_codepage)
             for line in lines:
                 p.text(line + "\n")
             self._finish(p)
-        except Exception as exc:
-            raise PrinterError(str(exc)) from exc
+
+        self._job(go)
 
     def print_calibration(self, sweep: bool = False) -> None:
         """Calibration receipt: text ruler + umlauts and one image block.
 
         With sweep=True, one extra block per density preset follows.
         """
-        p = self._open()
-        try:
+
+        def go(p: File) -> None:
             p.charcode(self.cfg.fallback_codepage)
             p.set(align="left", bold=True)
             p.text("PRINTCRASTINATOR CALIBRATION\n")
@@ -146,8 +189,8 @@ class Printer:
                     p._raw(DENSITY_PRESETS[key])
                     self._send_image(p, calibration_image(f"density {key}"))
             self._finish(p)
-        except Exception as exc:
-            raise PrinterError(str(exc)) from exc
+
+        self._job(go)
 
 
 def calibration_image(label: str) -> Image.Image:

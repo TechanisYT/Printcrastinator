@@ -16,7 +16,9 @@
 - Font: bundled **JetBrains Mono ExtraBold** (OFL, `assets/fonts/`). Sizes: headline ~44 px,
   section headers ~28 px, body ~24 px, small meta ~20 px. Umlauts and € come from the font;
   no code pages involved.
-- The image is sent to the printer in bands of about 150 lines with python-escpos `image()`.
+- The image is sent in bands of 64 dot lines, each flushed and paced to `printer.lines_per_second`
+  (default 200). The Anjet 58 resets its USB link when flooded with raster data, which drops
+  bytes and blanks paper; pacing keeps the transfer within what it can print.
 
 ## Layout (top to bottom)
 
