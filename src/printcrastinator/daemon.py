@@ -311,19 +311,15 @@ class Daemon:
         '4' matches every stack of that board)."""
         suppressed = self.db.suppressed_keys()
         today = date.today()
+        resolved = [self._resolve_list_ref(x) for x in list_ids or []]
         out = []
         for t in self.candidates():
             if t.suppression_key() in suppressed:
                 continue
             if sources and t.source not in sources:
                 continue
-            if list_ids:
-                ok = False
-                for lid in list_ids:
-                    if t.list_id == lid or (t.source == "deck" and t.list_id.startswith(f"{lid}/")):
-                        ok = True
-                if not ok:
-                    continue
+            if resolved and not any(m(t) for m in resolved):
+                continue
             if overdue_only and not (t.due and t.due < today):
                 continue
             if t.due is None:
@@ -340,6 +336,41 @@ class Daemon:
                 continue
             out.append(t)
         return out
+
+    def _resolve_list_ref(self, ref: str):
+        """A list reference may be an id ('personal', '4/12', '4') or a name ('Eurocert',
+        'Escort · Einkaufsliste', 'Escort'). A name that is both a task list and a Deck board
+        matches both. Returns a predicate over TaskItem."""
+        ref_l = ref.strip().lower()
+        ids: set[str] = set()
+        boards: set[int] = set()
+        for c in self.state.collections:
+            if c.vtodo and (c.id.lower() == ref_l or c.name.lower() == ref_l):
+                ids.add(c.id)
+        for st in self.state.stacks:
+            full = f"{st.board_title} · {st.stack_title}".lower()
+            if (
+                f"{st.board_id}/{st.stack_id}" == ref_l
+                or full == ref_l
+                or full.replace(" · ", " ") == ref_l
+            ):
+                ids.add(f"{st.board_id}/{st.stack_id}")
+            if str(st.board_id) == ref_l or st.board_title.lower() == ref_l:
+                boards.add(st.board_id)
+        if not ids and not boards:  # fall back to substring match on names
+            for c in self.state.collections:
+                if c.vtodo and ref_l in c.name.lower():
+                    ids.add(c.id)
+            for st in self.state.stacks:
+                if ref_l in st.board_title.lower():
+                    boards.add(st.board_id)
+                elif ref_l in st.stack_title.lower():
+                    ids.add(f"{st.board_id}/{st.stack_id}")
+
+        def match(t: TaskItem) -> bool:
+            return t.list_id in ids or (t.source == "deck" and t.board_id in boards)
+
+        return match
 
     def group_by_list(self, items: list[TaskItem], lang: str | None = None) -> list[TaskGroup]:
         lang = lang or self.cfg.ui.language

@@ -120,8 +120,9 @@ TOOLS: list[dict[str, Any]] = [
             "name": "print_tasks",
             "description": (
                 "Print a custom receipt with a title and a filtered set of open tasks, grouped by "
-                "list. Filters combine. list_ids: task list ids or Deck 'board/stack' ids (a bare "
-                "board id prints all its stacks). due_from/due_to: YYYY-MM-DD. include_no_due: "
+                "list. Filters combine. list_ids: task list ids or names, Deck board ids or names "
+                "(all stacks), or 'board/stack' ids or 'Board · Stack' names. Use only list_ids "
+                "unless the user asked for a time frame. due_from/due_to: YYYY-MM-DD. include_no_due: "
                 "keep tasks without a due date (default true; set false for 'due in the next N "
                 "days'). overdue_only. tags: any-of. text: substring in title/notes."
             ),
@@ -300,7 +301,13 @@ GUIDELINES = (
     "- 'tasks from list <L> due in the next week': list_ids=['<L id>'], due_from=today, "
     "due_to=today+7, include_no_due=false.\n"
     "- 'print what is overdue in <L>': list_ids, overdue_only=true.\n"
+    "- 'print (the) tasks for/of/from <name>': print_tasks with list_ids=['<name>'] and NO other "
+    "filter. Names are accepted: a task list name, a Deck board name (all its stacks) or "
+    "'Board · Stack'. If a task list and a board share the name, both are included.\n"
+    "- Never add due_from/due_to/overdue_only/text unless the user explicitly asks for a time "
+    "frame, overdue items or a keyword. 'print the tasks for X' means ALL open tasks of X.\n"
     "- When unsure what a filter matches, call preview_tasks first, then print_tasks.\n"
+    "- Report the 'count' the tool returns; do not count items yourself.\n"
     "- Compute dates from 'Today is …'; never ask the user for the date format.\n\n"
 )
 
@@ -448,8 +455,11 @@ class Assistant:
                         f[k] = date.fromisoformat(f[k])
                 if name == "preview_tasks":
                     items = d.select_tasks(**f)
-                    rows = [f"{t.uid} | {t.title} | {t.list_name}" for t in items][:60]
-                    return json.dumps({"count": len(items), "tasks": rows})
+                    rows = [f"{t.uid} | {t.title} | {t.list_name}" for t in items][:40]
+                    note = f"{len(items)} tasks match this filter"
+                    if len(items) > len(rows):
+                        note += f"; only the first {len(rows)} are listed here"
+                    return json.dumps({"count": len(items), "note": note, "tasks": rows})
                 return json.dumps(await d.print_selection(args.get("title") or "Tasks", **f))
             if name == "printer_action":
                 act = args.get("action", "")
@@ -495,7 +505,11 @@ class Assistant:
                         args = json.loads(args)
                     except ValueError:
                         args = {}
+                log.info(
+                    "ai tool %s %s", fn.get("name"), json.dumps(args, ensure_ascii=False)[:400]
+                )
                 result = await self._run_tool(fn.get("name", ""), args)
+                log.info("ai tool result: %s", result[:200])
                 if fn.get("name") not in ("get_settings", "preview_tasks"):
                     actions.append(result)
                 messages.append(
