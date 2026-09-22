@@ -60,6 +60,13 @@ days, default 14) from Nextcloud's auto-generated "Contact birthdays" calendar
 top and bottom, kind label, headline title, subtitle, when/where/seat/name/price rows, a QR code
 (`qrcode`, scaled to whole modules, about 176 px) for `code`, and a note.
 
+### Timeline hour height and horizontal fallback
+
+Hour labels show only the hour ("09"). The height of an hour grows until every block can show
+its whole title and meta text (minimum 64 px). If that would need more than 10 lines in a
+block or an hour taller than 300 px, the day is drawn with the horizontal (rotated) layout
+instead, with a day width scaled to the number of overlapping columns.
+
 ### Timeline range
 
 Both timelines start at the full hour before the first event and end exactly at the last

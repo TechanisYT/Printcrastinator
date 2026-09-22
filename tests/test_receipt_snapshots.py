@@ -24,6 +24,7 @@ def _cases():
         "sample_cards": layout.daily_receipt(layout.sample_agenda(DAY), "en", "cards"),
         "calendar_1day": layout.calendar_receipt([(DAY, layout.sample_agenda(DAY).events)], "en"),
         "calendar_3days": layout.calendar_receipt(layout.sample_calendar_days(DAY), "en"),
+        "calendar_longtext": layout.calendar_receipt([(DAY, layout.sample_long_events(DAY))], "en"),
         "list": layout.list_receipt(
             "Shopping list",
             ["Milk", "Eggs", "3 mm acrylic sheet", "Filament PETG black"],

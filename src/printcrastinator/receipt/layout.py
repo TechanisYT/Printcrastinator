@@ -590,6 +590,41 @@ def sample_agenda(day: date | None = None) -> DailyAgenda:
     )
 
 
+def sample_long_events(day: date | None = None) -> list[CalendarEvent]:
+    """Two short overlapping events with very long titles: forces the horizontal fallback."""
+    day = day or date(2026, 9, 22)
+    tz = datetime.now().astimezone().tzinfo
+    base = datetime.combine(day, datetime.min.time(), tz)
+    long = (
+        "Quarterly planning workshop with the whole engineering department, product management "
+        "and the two external consultants about the roadmap, hiring and the new test bench"
+    )
+    return [
+        CalendarEvent(
+            "l1",
+            long,
+            base.replace(hour=9),
+            base.replace(hour=9, minute=30),
+            False,
+            "w",
+            "Work",
+            location="Big room",
+        ),
+        CalendarEvent(
+            "l2",
+            long + " (part two)",
+            base.replace(hour=9, minute=15),
+            base.replace(hour=9, minute=45),
+            False,
+            "w",
+            "Work",
+        ),
+        CalendarEvent(
+            "l3", "Lunch", base.replace(hour=12), base.replace(hour=13), False, "p", "Personal"
+        ),
+    ]
+
+
 def sample_calendar_days(day: date | None = None) -> list[tuple[date, list[CalendarEvent]]]:
     day = day or date(2026, 9, 22)
     base = sample_agenda(day).events

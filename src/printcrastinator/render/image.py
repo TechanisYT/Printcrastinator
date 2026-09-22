@@ -267,17 +267,43 @@ def _timeline(c: _Canvas, b: Timeline) -> None:
     placed, overflow = _assign_columns(list(b.events), b.max_columns)
     if not placed:
         return
-    px_per_hour = 64
     lh_small = _line_height("small")
-    label_w = text_width("00:00", "small") + 6
+    lh_tiny = _line_height("tiny")
+    label_w = text_width("00", "small") + 6
     bar_x = MARGIN + label_w
     first = min(e.start_min for e, _ in placed) // 60  # full hour before the first event
     end_min = max(e.end_min for e, _ in placed)  # bar ends exactly with the last event
-    height = max(lh_small + 8, int((end_min - first * 60) * px_per_hour / 60))
     ncols = max(col for _, col in placed) + 1
     area_x = bar_x + 6
     gap = 4
     col_w = (WIDTH - MARGIN - area_x - gap * (ncols - 1)) // ncols
+
+    def overlaps(a: TimelineEvent, b: TimelineEvent) -> bool:
+        return a.start_min < b.end_min and b.start_min < a.end_min
+
+    def span_of(e: TimelineEvent, col: int) -> int:
+        span = 1
+        while col + span < ncols and not any(
+            c2 == col + span and overlaps(e, o) for o, c2 in placed
+        ):
+            span += 1
+        return span
+
+    # How tall must an hour be so every block shows its whole text? Blocks that would need
+    # more than 10 lines mean the upright layout is hopeless: switch to the horizontal one.
+    px_per_hour = 64.0
+    for e, col in placed:
+        w = span_of(e, col) * col_w + (span_of(e, col) - 1) * gap - 14
+        n_lines = len(wrap(e.title, "small", w))
+        n_sub = len(wrap(e.sub, "tiny", w)) if e.sub else 0
+        need = n_lines * lh_small + n_sub * lh_tiny + 8
+        px_per_hour = max(px_per_hour, need * 60 / max(15, e.end_min - e.start_min))
+        # Too many lines, or an hour that would have to be taller than ~4 cm: the upright
+        # layout no longer works, use the horizontal one (wide blocks, short hours).
+        if n_lines + n_sub > 10 or px_per_hour > 300:
+            _timeline_horizontal(c, b)
+            return
+    height = max(lh_small + 8, int((end_min - first * 60) * px_per_hour / 60))
     c.ensure(height + lh_small + 16)
     top = c.y + lh_small // 2
 
@@ -285,23 +311,18 @@ def _timeline(c: _Canvas, b: Timeline) -> None:
         return top + int((minutes - first * 60) * px_per_hour / 60)
 
     c.draw.rectangle((bar_x, top, bar_x + 1, top + height), fill=0)
-    ticks = [h * 60 for h in range(first, end_min // 60 + 1) if h * 60 <= end_min - 40]
-    ticks.append(end_min)
-    for m in ticks:
-        y = y_of(m)
+    for h in range(first, end_min // 60 + 1):
+        if h * 60 > end_min:
+            break
+        y = y_of(h * 60)
         c.draw.rectangle((bar_x - 4, y, bar_x + 1, y), fill=0)
-        c.draw.text((MARGIN, y - lh_small // 2), _hhmm(m), font=font("small"), fill=0)
-
-    def overlaps(a: TimelineEvent, b: TimelineEvent) -> bool:
-        return a.start_min < b.end_min and b.start_min < a.end_min
+        c.draw.text((MARGIN, y - lh_small // 2), f"{h:02d}", font=font("small"), fill=0)
+    if end_min % 60:
+        y = y_of(end_min)
+        c.draw.rectangle((bar_x - 4, y, bar_x + 1, y), fill=0)
 
     for e, col in placed:
-        # widen into columns to the right that hold nothing overlapping this event
-        span = 1
-        while col + span < ncols and not any(
-            c2 == col + span and overlaps(e, o) for o, c2 in placed
-        ):
-            span += 1
+        span = span_of(e, col)  # widen into free columns to the right
         x0 = area_x + col * (col_w + gap)
         x1 = x0 + span * col_w + (span - 1) * gap - 1
         y0 = y_of(e.start_min)
@@ -330,6 +351,16 @@ def _timeline(c: _Canvas, b: Timeline) -> None:
     c.y = top + height + lh_small // 2 + 8
     for e in overflow:
         _event(c, EventLine(f"{_hhmm(e.start_min)}–{_hhmm(e.end_min)}", e.title, meta=e.sub))
+
+
+def _timeline_horizontal(c: _Canvas, b: Timeline) -> None:
+    """Fallback for days with very long event texts: the rotated table with one wide day."""
+    placed, _ = _assign_columns(list(b.events), 6)
+    ncols = max((col for _, col in placed), default=0) + 1
+    img = multi_day_calendar([("", list(b.events), [])], day_w=max(560, 240 * ncols))
+    c.ensure(img.height)
+    c.img.paste(img.convert("L"), ((WIDTH - img.width) // 2, c.y))
+    c.y += img.height
 
 
 def _tear(c: _Canvas) -> None:
@@ -388,7 +419,9 @@ def render(receipt: Receipt, top_pad: int = 8, bottom_pad: int = 8) -> Image.Ima
 # ---- multi-day calendar, drawn landscape and rotated onto the 384 px paper -------------------
 
 
-def multi_day_calendar(days: list[tuple[str, list[TimelineEvent], list[str]]]) -> Image.Image:
+def multi_day_calendar(
+    days: list[tuple[str, list[TimelineEvent], list[str]]], day_w: int = 230
+) -> Image.Image:
     """days: [(label, timed events, all-day titles)]. Returns a 384 px wide 1-bit image whose
     content is rotated 90°, days side by side along the paper."""
     from PIL import ImageOps
@@ -398,8 +431,7 @@ def multi_day_calendar(days: list[tuple[str, list[TimelineEvent], list[str]]]) -
     lh_tiny = _line_height("tiny")
     allday_rows = min(2, max((len(a) for _, _, a in days), default=0))
     allday_h = allday_rows * lh_tiny + (4 if allday_rows else 0)
-    axis_w = text_width("00:00", "tiny") + 8
-    day_w = 230
+    axis_w = text_width("00", "tiny") + 8
     gap = 6
     W = MARGIN + axis_w + len(days) * (day_w + gap) + MARGIN
     timed_all = [e for _, evs, _ in days for e in evs]
@@ -419,26 +451,28 @@ def multi_day_calendar(days: list[tuple[str, list[TimelineEvent], list[str]]]) -
 
     axis_x = MARGIN + axis_w
     # hour grid lines + labels
-    ticks = [h * 60 for h in range(first, end_min // 60 + 1) if h * 60 <= end_min - 40]
-    ticks.append(end_min)
-    for m in ticks:
-        y = y_of(m)
-        d.line((axis_x, y, W - MARGIN, y), fill=0 if m in (first * 60, end_min) else 160)
-        d.text((MARGIN, y - lh_tiny // 2), _hhmm(m), font=font("tiny"), fill=0)
+    for h in range(first, end_min // 60 + 1):
+        if h * 60 > end_min:
+            break
+        y = y_of(h * 60)
+        d.line((axis_x, y, W - MARGIN, y), fill=0 if h == first else 160)
+        d.text((MARGIN, y - lh_tiny // 2), f"{h:02d}", font=font("tiny"), fill=0)
+    if end_min % 60:
+        y = y_of(end_min)
+        d.line((axis_x, y, W - MARGIN, y), fill=0)
     for i, (label, evs, allday) in enumerate(days):
         x0 = axis_x + i * (day_w + gap)
         x1 = x0 + day_w
-        d.text((x0 + 4, 8 + 2), label, font=font("subheader"), fill=0)
-        d.rectangle((x0, 8 + header_h - 3, x1 - 1, 8 + header_h - 1), fill=0)
+        if label:
+            d.text((x0 + 4, 8 + 2), label, font=font("subheader"), fill=0)
+            d.rectangle((x0, 8 + header_h - 3, x1 - 1, 8 + header_h - 1), fill=0)
         ay = 8 + header_h + 2
         for title in allday[:allday_rows]:
             line = wrap(title, "tiny", day_w - 8)[0]
             d.text((x0 + 4, ay), "▪ " + line if len(line) < 30 else line, font=font("tiny"), fill=0)
             ay += lh_tiny
         d.line((x0, top, x0, H - 10), fill=0, width=1)
-        placed, overflow = _assign_columns(list(evs) + [], 3)
-        # overflow events still get drawn, squeezed into the last column
-        placed += [(e, 2) for e in overflow]
+        placed, overflow = _assign_columns(list(evs), 6)  # rotated: room for more columns
         ncols = max((c for _, c in placed), default=0) + 1
         col_w = (day_w - 4 - 3 * (ncols - 1)) // max(1, ncols)
 
