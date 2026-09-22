@@ -22,14 +22,16 @@ client can manage tasks, events and the program's settings for you.
 - **On-screen agenda at login**: the daemon opens the terminal view and sends a desktop
   notification when the morning check runs, also after resume from sleep and screen unlock.
 - **Local AI via Ollama**: morning briefing and natural-language control, fully offline:
-  complete, reopen, edit and create tasks with all fields, create calendar events, change
-  settings, print, run printer tests.
+  complete, reopen, edit and create tasks with all fields, create/edit/delete events including
+  attendees and recurrence, print the receipt for any day, print filtered task lists, the
+  calendar only, birthdays, saved lists and tickets, change settings, run printer tests.
 - **MCP server** (`pc mcp`) exposing the same tools to Claude Code or any MCP client.
 - **Web UI** on `127.0.0.1:8555` (single page, dark by default): credentials, task hiding,
   Deck stack and task list rules, calendar selection, extra calendars, logo upload, quotes,
   overdue filters, printer tuning, receipt previews, test buttons.
 - **Birthdays** from Nextcloud's contact birthday calendar: on the receipt, in the notification,
-  in the terminal view and known to the AI, with a configurable lookahead.
+  in the terminal view and known to the AI, with a configurable lookahead. The AI can also
+  look up a contact and set or change its birthday.
 - **Saved custom lists** (shopping list, packing list …) edited in the web UI or by the AI,
   printed as checklists whenever needed.
 - **Tickets**: cinema/entry/voucher style tickets with a QR code, from the web UI or the AI.

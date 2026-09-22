@@ -10,3 +10,12 @@ build/
 *.sqlite3
 config.toml
 TODO.md
+# never commit local data
+*.vcf
+*.ics.bak
+.env
+.env.*
+vault.key
+vault.json
+logos/
+*.log

@@ -87,3 +87,12 @@ reused for that poll (stale-while-error), the poll loop backs off exponentially 
   so the Calendars page toggles work per collection.
 
 Errors are reported per calendar in the daemon status and never block the Nextcloud sources.
+
+## Contacts (CardDAV)
+
+`sources/contacts.py` lists the user's address books (system-generated ones skipped), finds
+contacts with an `addressbook-query` REPORT on FN, and sets a birthday by rewriting only the
+BDAY line of the vCard (`YYYY-MM-DD`, or `--MM-DD` stored as `X-APPLE-OMIT-YEAR=1604`) and
+PUTting it back with `If-Match`. Note: Nextcloud returns a weak ETag (`W/"…"`) on gzip
+responses; the strong form is required for `If-Match`. Nextcloud regenerates the birthday
+calendar after the change.
