@@ -13,8 +13,9 @@
 - The receipt is a **raster image**: 384 px wide, arbitrary height, mode `1`.
 - Drawn with Pillow at 1:1 (one image pixel = one printer dot). Body text is drawn with
   antialiasing off and converted with a fixed threshold, no dithering, so strokes stay crisp.
-- Font: bundled **JetBrains Mono ExtraBold** (OFL, `assets/fonts/`). Sizes: headline ~44 px,
-  section headers ~28 px, body ~24 px, small meta ~20 px. Umlauts and € come from the font;
+- Font: bundled **JetBrains Mono** (OFL, `assets/fonts/`) in four weights: ExtraBold for the
+  date and section headers (44 / 28 px), Bold for list subheaders (24 px), Medium for task
+  titles (24 px), Regular for notes, tags and markers (20 px). Umlauts and € come from the font;
   no code pages involved.
 - The image is sent in bands of 64 dot lines, each flushed and paced to `printer.lines_per_second`
   (default 200). The Anjet 58 resets its USB link when flooded with raster data, which drops

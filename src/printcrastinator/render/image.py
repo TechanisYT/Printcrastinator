@@ -33,12 +33,14 @@ LINE_FACTOR = 1.3
 ITEM_GAP = 6
 THRESHOLD = 128
 
-SIZES: dict[Size, int] = {"headline": 44, "section": 28, "body": 24, "small": 20}
+SIZES: dict[Size, int] = {"headline": 44, "section": 28, "subheader": 24, "body": 24, "small": 20}
+# Weights: headers heavy, list subheaders bold, task titles medium, notes/meta regular.
 FONTS: dict[Size, str] = {
     "headline": "JetBrainsMono-ExtraBold.ttf",
     "section": "JetBrainsMono-ExtraBold.ttf",
-    "body": "JetBrainsMono-Bold.ttf",
-    "small": "JetBrainsMono-Bold.ttf",
+    "subheader": "JetBrainsMono-Bold.ttf",
+    "body": "JetBrainsMono-Medium.ttf",
+    "small": "JetBrainsMono-Regular.ttf",
 }
 
 
@@ -145,12 +147,12 @@ def _section(c: _Canvas, b: SectionHeader) -> None:
 
 def _subheader(c: _Canvas, b: SubHeader) -> None:
     """List/board label inside a section: bold body text with a 2 px rule underneath."""
-    lh = _line_height("body")
-    lines = wrap(b.text, "body", WIDTH - 2 * MARGIN)
+    lh = _line_height("subheader")
+    lines = wrap(b.text, "subheader", WIDTH - 2 * MARGIN)
     c.ensure(10 + lh * len(lines) + 2 + 8)
     c.y += 10
     for line in lines:
-        _draw_text(c, MARGIN, line, "body")
+        _draw_text(c, MARGIN, line, "subheader")
         c.y += lh
     c.draw.rectangle((MARGIN, c.y, WIDTH - MARGIN - 1, c.y + 1), fill=0)
     c.y += 2 + 8

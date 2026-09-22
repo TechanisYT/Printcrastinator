@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import date, datetime
 from io import BytesIO
 
@@ -170,6 +171,20 @@ def make_router(daemon: Daemon) -> APIRouter:
         return await daemon.maybe_print_daily(
             force=force, reason="api", layout_mode=layout_mode or None
         )
+
+    @r.post("/print/sample")
+    async def print_sample(layout_mode: str = ""):
+        rc = layout.daily_receipt(
+            layout.sample_agenda(),
+            daemon.cfg.ui.language,
+            layout_mode or daemon.cfg.daily.layout,
+            daemon.layout_options(),
+        )
+        try:
+            await asyncio.to_thread(daemon.printer.print_image, render_image.render(rc))
+        except PrinterError as exc:
+            raise HTTPException(503, str(exc)) from exc
+        return {"ok": True}
 
     @r.get("/settings")
     async def get_settings():

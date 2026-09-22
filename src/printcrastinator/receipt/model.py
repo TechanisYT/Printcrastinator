@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 Align = Literal["left", "center", "right"]
-Size = Literal["headline", "section", "body", "small"]
+Size = Literal["headline", "section", "subheader", "body", "small"]
 
 
 @dataclass(frozen=True)
