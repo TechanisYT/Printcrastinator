@@ -46,6 +46,25 @@ range spans the earliest to the latest event across all days (minimum 6 h). No t
 Reachable via "Print calendar only" on the Dashboard, `/api/print/calendar`, the AI tool
 `print_calendar` and MCP.
 
+### Birthdays
+
+A BIRTHDAYS section after EVENTS lists today's and upcoming birthdays (`daily.birthdays_lookahead`
+days, default 14) from Nextcloud's auto-generated "Contact birthdays" calendar
+(`daily.birthdays_calendar`, default `contact_birthdays`). Nextcloud titles them
+"🎂 Name (1990)"; the year gives the age. That calendar is excluded from EVENTS.
+
+### Saved lists and tickets
+
+`list_receipt(title, items)`: a title block and one checkbox per item; lists live in the
+`custom_lists` table and remember when they were last printed. `ticket_receipt(dict)`: tear lines
+top and bottom, kind label, headline title, subtitle, when/where/seat/name/price rows, a QR code
+(`qrcode`, scaled to whole modules, about 176 px) for `code`, and a note.
+
+### Timeline range
+
+Both timelines start at the full hour before the first event and end exactly at the last
+event's end (the final tick is labelled with that time); no padding after the last event.
+
 ### Custom receipts
 
 `custom_receipt(title, groups, day)`: a title header with the date, then the selected tasks

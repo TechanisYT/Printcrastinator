@@ -104,9 +104,11 @@ def build_server():
         description: str = "",
         location: str = "",
         attendees: list[str] | None = None,
+        rrule: str = "",
     ) -> dict:
         """Create an event. start/end: YYYY-MM-DD (all-day) or YYYY-MM-DDTHH:MM (timed).
-        attendees: 'Name <mail>' or 'mail'."""
+        attendees: 'Name <mail>' or 'mail'. rrule: daily|weekly|weekdays|monthly|yearly|
+        'every 2 weeks'|FREQ=... for recurring events."""
         body = {k: v for k, v in locals().items() if v is not None}
         return _api("POST", "/api/events", json=body)
 
@@ -119,8 +121,10 @@ def build_server():
         description: str | None = None,
         location: str | None = None,
         attendees: list[str] | None = None,
+        rrule: str | None = None,
     ) -> dict:
-        """Edit an event; attendees replaces the whole list ([] removes everyone)."""
+        """Edit an event; attendees replaces the whole list ([] removes everyone); rrule ""
+        removes the recurrence."""
         body = {k: v for k, v in locals().items() if k != "uid" and v is not None}
         return _api("POST", f"/api/events/{uid}/edit", json=body)
 
@@ -192,6 +196,42 @@ def build_server():
     def printer_action(action: str) -> dict:
         """test_print, density_sweep, feed, test_notification, full_cycle or poll."""
         return _api("POST", "/api/printer/action", params={"action": action})
+
+    @srv.tool()
+    def custom_lists() -> dict:
+        """Saved custom lists (shopping lists etc.) with items and print state."""
+        return _api("GET", "/api/lists")
+
+    @srv.tool()
+    def save_custom_list(title: str, items: list[str], list_id: int | None = None) -> dict:
+        """Create (or with list_id replace) a saved list."""
+        return _api("POST", "/api/lists", json={"title": title, "items": items, "list_id": list_id})
+
+    @srv.tool()
+    def print_custom_list(list_id: int) -> dict:
+        """Print a saved list as a checklist."""
+        return _api("POST", f"/api/print/list/{list_id}")
+
+    @srv.tool()
+    def delete_custom_list(list_id: int) -> dict:
+        """Delete a saved list."""
+        return _api("DELETE", f"/api/lists/{list_id}")
+
+    @srv.tool()
+    def print_ticket(
+        title: str,
+        kind: str = "TICKET",
+        subtitle: str = "",
+        when: str = "",
+        where: str = "",
+        seat: str = "",
+        holder: str = "",
+        price: str = "",
+        code: str = "",
+        note: str = "",
+    ) -> dict:
+        """Print a ticket (cinema, entry, voucher); code is rendered as a QR code."""
+        return _api("POST", "/api/print/ticket", json=dict(locals()))
 
     @srv.tool()
     def daemon_status() -> dict:

@@ -28,6 +28,8 @@ SECTIONS = [
     ("lists", "Task lists", "list"),
     ("calendars", "Calendars", "calendar_month"),
     ("printer", "Printer", "print"),
+    ("custom_lists", "Custom lists", "checklist_rtl"),
+    ("tickets", "Tickets", "confirmation_number"),
     ("settings", "Settings", "settings"),
 ]
 
@@ -863,6 +865,139 @@ def sec_settings(daemon: Daemon, dark: ui.dark_mode) -> None:
     ui.button("Save", icon="save", on_click=save)
 
 
+def sec_custom_lists(daemon: Daemon) -> None:
+    ui.label("Custom lists").classes("text-lg font-bold")
+    ui.label(
+        "Shopping lists, packing lists … Saved until you delete them; print as a checklist "
+        "whenever you need it."
+    ).classes("text-sm opacity-70")
+    editor = ui.card().classes("w-full")
+    table = ui.column().classes("w-full gap-2")
+    state = {"id": None}
+
+    with editor:
+        e_title = ui.input("Title", placeholder="Shopping list").classes("w-80")
+        e_items = ui.textarea("Items, one per line").classes("w-full").props("rows=8")
+        with ui.row():
+
+            def save():
+                items = [ln for ln in (e_items.value or "").splitlines() if ln.strip()]
+                if not (e_title.value or "").strip():
+                    ui.notify("title required", type="warning")
+                    return
+                state["id"] = daemon.db.save_custom_list(e_title.value, items, state["id"])
+                ui.notify("saved", type="positive")
+                render()
+
+            def new():
+                state["id"] = None
+                e_title.value, e_items.value = "", ""
+
+            ui.button("Save", icon="save", on_click=save)
+            ui.button("New", icon="add", on_click=new).props("outline")
+            ui.button(
+                "Save & print",
+                icon="print",
+                on_click=lambda: (save(), _run(daemon.print_custom_list(state["id"]), "list")),
+            ).props("outline")
+
+    def load(lst):
+        state["id"] = lst["id"]
+        e_title.value = lst["title"]
+        e_items.value = "\n".join(lst["items"])
+
+    def render():
+        table.clear()
+        with table:
+            for lst in daemon.db.custom_lists():
+                with ui.row().classes("w-full items-center border-b py-1"):
+                    ui.label(lst["title"]).classes("font-bold grow")
+                    ui.label(f"{len(lst['items'])} items").classes("text-sm opacity-70")
+                    ui.label(
+                        "printed " + lst["printed_at"][:16].replace("T", " ")
+                        if lst["printed_at"]
+                        else "not printed yet"
+                    ).classes("text-xs opacity-70 w-40")
+                    ui.button(icon="edit", on_click=lambda lst=lst: load(lst)).props("flat dense")
+                    ui.button(
+                        icon="print",
+                        on_click=lambda lst=lst: _run(daemon.print_custom_list(lst["id"]), "list"),
+                    ).props("flat dense")
+                    ui.button(
+                        icon="delete",
+                        on_click=lambda lst=lst: (
+                            daemon.db.delete_custom_list(lst["id"]),
+                            render(),
+                        ),
+                    ).props("flat dense")
+            if not daemon.db.custom_lists():
+                ui.label("no lists yet").classes("opacity-70")
+
+    render()
+
+
+def sec_tickets(daemon: Daemon) -> None:
+    ui.label("Tickets").classes("text-lg font-bold")
+    ui.label(
+        "Cinema ticket, entry ticket, voucher: fill in what you need, preview, print."
+    ).classes("text-sm opacity-70")
+    with ui.row().classes("w-full items-start gap-6"):
+        with ui.column().classes("gap-1"):
+            f_kind = ui.input("Header", value="ADMIT ONE").classes("w-64")
+            f_title = ui.input("Title", placeholder="Dune Part Three").classes("w-64")
+            f_sub = ui.input("Subtitle", placeholder="Cineplexx Graz").classes("w-64")
+            f_when = ui.input("When", placeholder="Sat 27.09. 20:00").classes("w-64")
+            f_where = ui.input("Where", placeholder="Hall 4").classes("w-64")
+            f_seat = ui.input("Seat", placeholder="Row 7 · Seat 12").classes("w-64")
+            f_holder = ui.input("Name").classes("w-64")
+            f_price = ui.input("Price").classes("w-64")
+            f_code = ui.input("Code / URL (QR)").classes("w-64")
+            f_note = ui.input("Note").classes("w-64")
+
+            def ticket():
+                return {
+                    "kind": f_kind.value or "TICKET",
+                    "title": f_title.value or "",
+                    "subtitle": f_sub.value or "",
+                    "when": f_when.value or "",
+                    "where": f_where.value or "",
+                    "seat": f_seat.value or "",
+                    "holder": f_holder.value or "",
+                    "price": f_price.value or "",
+                    "code": f_code.value or "",
+                    "note": f_note.value or "",
+                }
+
+            with ui.row():
+                ui.button(
+                    "Print ticket",
+                    icon="print",
+                    on_click=lambda: _run(daemon.print_ticket(ticket()), "ticket"),
+                )
+                ui.button("Preview", icon="visibility", on_click=lambda: preview()).props("outline")
+        with ui.column():
+            from ..receipt import layout as _layout
+            from ..render import image as _image
+
+            prev = (
+                ui.image().classes("w-[300px] border bg-white").style("image-rendering: pixelated")
+            )
+
+            def preview():
+                import base64
+                from io import BytesIO
+
+                buf = BytesIO()
+                _image.render(_layout.ticket_receipt(ticket(), daemon.cfg.ui.language)).save(
+                    buf, format="PNG"
+                )
+                prev.set_source(
+                    "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+                )
+
+            preview()
+
+
 async def _print_sample(daemon: Daemon) -> None:
     from ..receipt import layout
     from ..render import image as render_image
@@ -888,6 +1023,8 @@ def build(daemon: Daemon) -> None:
             "lists": lambda: sec_lists(daemon),
             "calendars": lambda: sec_calendars(daemon),
             "printer": lambda: sec_printer(daemon),
+            "custom_lists": lambda: sec_custom_lists(daemon),
+            "tickets": lambda: sec_tickets(daemon),
             "settings": lambda: sec_settings(daemon, dark),
         }
         current = {"key": "dashboard"}

@@ -33,6 +33,11 @@ LABELS: dict[str, dict[str, str]] = {
         "birthdays": "BIRTHDAYS",
         "in_days": "in {n} d",
         "turns": "turns {n}",
+        "tk_when": "when",
+        "tk_where": "where",
+        "tk_seat": "seat",
+        "tk_name": "name",
+        "tk_price": "price",
     },
     "de": {
         "today": "HEUTE",
@@ -62,6 +67,11 @@ LABELS: dict[str, dict[str, str]] = {
         "birthdays": "GEBURTSTAGE",
         "in_days": "in {n} T",
         "turns": "wird {n}",
+        "tk_when": "wann",
+        "tk_where": "wo",
+        "tk_seat": "platz",
+        "tk_name": "name",
+        "tk_price": "preis",
     },
 }
 

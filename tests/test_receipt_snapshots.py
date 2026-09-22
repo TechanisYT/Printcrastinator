@@ -24,6 +24,27 @@ def _cases():
         "sample_cards": layout.daily_receipt(layout.sample_agenda(DAY), "en", "cards"),
         "calendar_1day": layout.calendar_receipt([(DAY, layout.sample_agenda(DAY).events)], "en"),
         "calendar_3days": layout.calendar_receipt(layout.sample_calendar_days(DAY), "en"),
+        "list": layout.list_receipt(
+            "Shopping list",
+            ["Milk", "Eggs", "3 mm acrylic sheet", "Filament PETG black"],
+            DAY,
+            "en",
+        ),
+        "ticket": layout.ticket_receipt(
+            {
+                "kind": "ADMIT ONE",
+                "title": "Dune Part Three",
+                "subtitle": "Cineplexx Graz",
+                "when": "Sat 27.09.2026 20:00",
+                "where": "Hall 4",
+                "seat": "Row 7 · Seat 12",
+                "holder": "Johannes",
+                "price": "12,50 €",
+                "code": "PRNT-4711-0042",
+                "note": "Doors open 19:30",
+            },
+            "en",
+        ),
     }
 
 

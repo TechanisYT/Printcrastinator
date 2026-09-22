@@ -35,6 +35,7 @@ class EventCreate(BaseModel):
     description: str = ""
     location: str = ""
     attendees: list[str] | None = None  # "Name <mail>" or "mail"
+    rrule: str = ""  # daily | weekly | weekdays | monthly | yearly | every 2 weeks | FREQ=...
 
 
 class EventEdit(BaseModel):
@@ -44,6 +45,7 @@ class EventEdit(BaseModel):
     description: str | None = None
     location: str | None = None
     attendees: list[str] | None = None  # replaces the whole set; [] removes all
+    rrule: str | None = None  # "" removes the recurrence
 
 
 class Selection(BaseModel):
@@ -69,6 +71,25 @@ def _selection_filters(b: Selection) -> dict:
         "text": b.text,
         "sources": b.sources,
     }
+
+
+class ListBody(BaseModel):
+    title: str
+    items: list[str]
+    list_id: int | None = None
+
+
+class Ticket(BaseModel):
+    title: str
+    kind: str = "TICKET"  # e.g. ADMIT ONE, CINEMA, ENTRY
+    subtitle: str = ""
+    when: str = ""
+    where: str = ""
+    seat: str = ""
+    holder: str = ""
+    price: str = ""
+    code: str = ""  # rendered as QR code
+    note: str = ""
 
 
 class ChatBody(BaseModel):
@@ -171,6 +192,7 @@ def make_router(daemon: Daemon) -> APIRouter:
                 body.description,
                 body.location,
                 body.attendees,
+                body.rrule,
             )
         except Exception as exc:
             raise HTTPException(502, f"Nextcloud event create failed: {exc}") from exc
@@ -244,7 +266,10 @@ def make_router(daemon: Daemon) -> APIRouter:
         lang = daemon.cfg.ui.language
         mode = layout_mode or daemon.cfg.daily.layout
         opt = daemon.layout_options()
-        if kind == "calendar":
+        if kind == "list":
+            lst = daemon.db.custom_list(int(day or 0)) or {"title": "List", "items": []}
+            rc = layout.list_receipt(lst["title"], lst["items"], date.today(), lang, opt)
+        elif kind == "calendar":
             d0 = date.fromisoformat(day) if day else date.today()
             d1 = date.fromisoformat(day_to) if day_to else d0
             rc = layout.calendar_receipt(await daemon.calendar_days(d0, d1), lang, opt)
@@ -266,6 +291,44 @@ def make_router(daemon: Daemon) -> APIRouter:
         return await daemon.maybe_print_daily(
             force=force, reason="api", layout_mode=layout_mode or None
         )
+
+    @r.get("/lists")
+    async def lists_get():
+        return {"lists": daemon.db.custom_lists()}
+
+    @r.post("/lists")
+    async def lists_save(body: ListBody):
+        lid = daemon.db.save_custom_list(body.title, body.items, body.list_id)
+        return {"list": daemon.db.custom_list(lid)}
+
+    @r.delete("/lists/{list_id}")
+    async def lists_delete(list_id: int):
+        daemon.db.delete_custom_list(list_id)
+        return {"ok": True}
+
+    @r.post("/print/list/{list_id}")
+    async def print_list(list_id: int):
+        try:
+            return await daemon.print_custom_list(list_id)
+        except LookupError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except PrinterError as exc:
+            raise HTTPException(503, str(exc)) from exc
+
+    @r.post("/print/ticket")
+    async def print_ticket(body: Ticket):
+        try:
+            return await daemon.print_ticket(body.model_dump())
+        except PrinterError as exc:
+            raise HTTPException(503, str(exc)) from exc
+
+    @r.post("/preview/ticket.png")
+    async def preview_ticket(body: Ticket):
+        buf = BytesIO()
+        render_image.render(layout.ticket_receipt(body.model_dump(), daemon.cfg.ui.language)).save(
+            buf, format="PNG"
+        )
+        return Response(buf.getvalue(), media_type="image/png")
 
     @r.post("/print/sample")
     async def print_sample(layout_mode: str = ""):

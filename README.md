@@ -28,6 +28,12 @@ client can manage tasks, events and the program's settings for you.
 - **Web UI** on `127.0.0.1:8555` (single page, dark by default): credentials, task hiding,
   Deck stack and task list rules, calendar selection, extra calendars, logo upload, quotes,
   overdue filters, printer tuning, receipt previews, test buttons.
+- **Birthdays** from Nextcloud's contact birthday calendar: on the receipt, in the notification,
+  in the terminal view and known to the AI, with a configurable lookahead.
+- **Saved custom lists** (shopping list, packing list …) edited in the web UI or by the AI,
+  printed as checklists whenever needed.
+- **Tickets**: cinema/entry/voucher style tickets with a QR code, from the web UI or the AI.
+- **Calendar-only prints**: one day as a timeline, or several days rotated side by side.
 - **Extra calendars** beyond Nextcloud: ICS/webcal subscription links (e.g. a university
   timetable) or other CalDAV servers, with their own credentials.
 - **Secrets in the system keyring** (KWallet, GNOME Keyring, any Secret Service provider);
@@ -90,7 +96,7 @@ has these sections:
 |---|---|
 | `nextcloud` | `url`, `username`, `app_password` (keyring reference) |
 | `printer` | `device`, `width_px`, `band_lines`, `lines_per_second`, `feed_after_mm`, `density`, `fallback_codepage` |
-| `daily` | `earliest_hour`, `print_calendar_only_days`, `layout`, `overdue_max_days`, `overdue_max_count`, `quote`, `quote_position`, `show_notes`, `notes_max_lines`, `group_by_list`, `show_list` |
+| `daily` | `earliest_hour`, `print_calendar_only_days`, `layout`, `overdue_max_days`, `overdue_max_count`, `quote`, `quote_position`, `show_notes`, `notes_max_lines`, `show_birthdays`, `birthdays_calendar`, `birthdays_lookahead`, `group_by_list`, `show_list` |
 | `slips` | `enabled_tasks`, `enabled_deck`, `debounce_seconds` |
 | `server` | `host`, `port`, `poll_interval` |
 | `screen` | `notify`, `terminal` |

@@ -272,6 +272,7 @@ class CalDavClient:
         description: str = "",
         location: str = "",
         attendees: list[str] | None = None,
+        rrule: str = "",
     ) -> str:
         cal = self._collection(calendar_id, vtodo=False)
         tz = datetime.now().astimezone().tzinfo
@@ -289,10 +290,66 @@ class CalDavClient:
         if location:
             kwargs["location"] = location
         ev = cal.save_event(**kwargs)
-        if attendees:
-            self._set_attendees(ev.icalendar_component, attendees)
+        if attendees or rrule:
+            comp = ev.icalendar_component
+            if attendees:
+                self._set_attendees(comp, attendees)
+            if rrule:
+                self._set_rrule(comp, rrule)
             ev.save()
         return str(ev.icalendar_component.get("UID", ""))
+
+    @staticmethod
+    def rrule_from_text(text: str) -> str:
+        """'daily' | 'weekly' | 'weekdays' | 'monthly' | 'yearly' | 'every 2 weeks' |
+        full 'FREQ=...' -> RRULE value. Optional suffixes handled by the caller."""
+        t = text.strip()
+        if not t:
+            return ""
+        if "FREQ=" in t.upper():
+            return t.upper()
+        low = t.lower()
+        simple = {
+            "daily": "FREQ=DAILY",
+            "weekly": "FREQ=WEEKLY",
+            "weekdays": "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
+            "monthly": "FREQ=MONTHLY",
+            "yearly": "FREQ=YEARLY",
+            "annually": "FREQ=YEARLY",
+        }
+        if low in simple:
+            return simple[low]
+        import re as _re
+
+        m = _re.match(r"every\s+(\d+)\s+(day|week|month|year)s?", low)
+        if m:
+            return f"FREQ={m.group(2).upper()}LY;INTERVAL={m.group(1)}"
+        m = _re.match(
+            r"every\s+(mon|tue|wed|thu|fri|sat|sun)\w*(?:\s+and\s+(mon|tue|wed|thu|fri|sat|sun)\w*)?",
+            low,
+        )
+        if m:
+            days = ",".join(d[:2].upper() for d in m.groups() if d)
+            return f"FREQ=WEEKLY;BYDAY={days}"
+        raise ValueError(
+            f"cannot understand recurrence {text!r}; give an RRULE like FREQ=WEEKLY;BYDAY=TU"
+        )
+
+    @staticmethod
+    def _set_rrule(
+        comp: Any, rrule: str, until: date | None = None, count: int | None = None
+    ) -> None:
+        from icalendar import vRecur
+
+        comp.pop("RRULE", None)
+        if not rrule:
+            return
+        value = CalDavClient.rrule_from_text(rrule)
+        if until:
+            value += f";UNTIL={until.strftime('%Y%m%d')}"
+        if count:
+            value += f";COUNT={int(count)}"
+        comp.add("RRULE", vRecur.from_ical(value))
 
     # ---- attendees -----------------------------------------------------------------------
 
@@ -381,6 +438,8 @@ class CalDavClient:
                 comp.add(prop, v)
         if fields.get("attendees") is not None:
             self._set_attendees(comp, list(fields["attendees"]))
+        if fields.get("rrule") is not None:
+            self._set_rrule(comp, fields["rrule"], fields.get("until"), fields.get("count"))
         ev.save()
 
     def delete_event(self, uid: str, calendar_id: str = "") -> None:

@@ -39,3 +39,16 @@ def test_seen_and_rules(tmp_path):
     assert db.disabled_calendars() == {"work"}
     db.cache_put("col", "ctag1", {"x": 1})
     assert db.cache_get("col") == ("ctag1", {"x": 1})
+
+
+def test_custom_lists_roundtrip(tmp_path):
+    db = Database(tmp_path / "s.sqlite3")
+    lid = db.save_custom_list("Shopping list", ["Milk", " Eggs ", ""])
+    assert db.custom_list(lid)["items"] == ["Milk", "Eggs"]
+    assert db.find_custom_list("shopping")["id"] == lid
+    db.save_custom_list("Shopping list", ["Milk", "Eggs", "Bread"], lid)
+    db.mark_list_printed(lid)
+    row = db.custom_list(lid)
+    assert row["items"] == ["Milk", "Eggs", "Bread"] and row["printed_at"]
+    db.delete_custom_list(lid)
+    assert db.custom_lists() == []

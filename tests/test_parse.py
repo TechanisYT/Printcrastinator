@@ -82,3 +82,13 @@ def test_birthdays_parsed_with_age_and_range():
         ("Anna Example", "2026-09-22", 30),
         ("Bob", "2026-09-25", None),
     ]
+
+
+def test_rrule_from_text():
+    from printcrastinator.sources.caldav_client import CalDavClient as C
+
+    assert C.rrule_from_text("weekly") == "FREQ=WEEKLY"
+    assert C.rrule_from_text("weekdays") == "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"
+    assert C.rrule_from_text("every 2 weeks") == "FREQ=WEEKLY;INTERVAL=2"
+    assert C.rrule_from_text("every monday and thursday") == "FREQ=WEEKLY;BYDAY=MO,TH"
+    assert C.rrule_from_text("freq=monthly;bymonthday=1") == "FREQ=MONTHLY;BYMONTHDAY=1"

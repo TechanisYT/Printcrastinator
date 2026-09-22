@@ -72,6 +72,52 @@ TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "lists",
+            "description": (
+                "Saved custom lists (shopping list, packing list …). action: show | save | add | "
+                "remove | print | delete. save creates or replaces the list with `items`; add "
+                "appends items; remove deletes matching items; print prints it as a checklist."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string"},
+                    "title": {"type": "string"},
+                    "items": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["action"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "print_ticket",
+            "description": (
+                "Print a ticket (cinema, entry, voucher …): kind (header, e.g. ADMIT ONE), title, "
+                "subtitle, when, where, seat, holder, price, code (printed as QR), note."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "kind": {"type": "string"},
+                    "title": {"type": "string"},
+                    "subtitle": {"type": "string"},
+                    "when": {"type": "string"},
+                    "where": {"type": "string"},
+                    "seat": {"type": "string"},
+                    "holder": {"type": "string"},
+                    "price": {"type": "string"},
+                    "code": {"type": "string"},
+                    "note": {"type": "string"},
+                },
+                "required": ["title"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_settings",
             "description": "Read the current Printcrastinator settings (all sections).",
             "parameters": {"type": "object", "properties": {}},
@@ -239,6 +285,14 @@ TOOLS: list[dict[str, Any]] = [
                         "items": {"type": "string"},
                         "description": "'Name <mail@x>' or 'mail@x'; each needs a mail address",
                     },
+                    "rrule": {
+                        "type": "string",
+                        "description": (
+                            "recurrence: daily, weekly, weekdays, monthly, yearly, "
+                            "'every 2 weeks', "
+                            "'every monday and thursday', or an RRULE like FREQ=WEEKLY;BYDAY=TU"
+                        ),
+                    },
                 },
                 "required": ["calendar_id", "title", "start"],
             },
@@ -263,6 +317,10 @@ TOOLS: list[dict[str, Any]] = [
                     "description": {"type": "string"},
                     "location": {"type": "string"},
                     "attendees": {"type": "array", "items": {"type": "string"}},
+                    "rrule": {
+                        "type": "string",
+                        "description": "recurrence; empty string removes it",
+                    },
                 },
                 "required": ["uid"],
             },
@@ -344,6 +402,7 @@ SYSTEM = (
     "You are Printcrastinator, a terse assistant for a personal to-do list synced with Nextcloud. "
     "You can complete, reopen, edit and create tasks (all fields), create calendar events, "
     "read and change settings, print the daily receipt for any day, print filtered task lists, "
+    "keep saved custom lists (shopping lists) and print tickets, "
     "and run printer tests with the provided tools. Always use the uid "
     "exactly as listed. When the user refers to a task by a rough description, pick the best "
     "match; if it is ambiguous, ask. After tool calls, confirm in one short sentence. "
@@ -380,6 +439,13 @@ GUIDELINES = (
     "frame, overdue items or a keyword. 'print the tasks for X' means ALL open tasks of X.\n"
     "- When unsure what a filter matches, call preview_tasks first, then print_tasks.\n"
     "- Report the 'count' the tool returns; do not count items yourself.\n"
+    "- Custom lists: 'add milk and eggs to the shopping list' -> lists(add, title='shopping "
+    "list', items=[...]); 'print the shopping list' -> lists(print). Lists are saved until "
+    "deleted; create one with save when it does not exist yet.\n"
+    "- Tickets: 'print a cinema ticket for Dune, Saturday 20:00, seat 12' -> print_ticket with "
+    "kind 'CINEMA'; put any booking code or URL into code so it becomes a QR code.\n"
+    "- Recurring events: pass rrule (e.g. 'weekly', 'every monday', FREQ=…) to create_event; "
+    "'until' or 'count' can be appended to an RRULE string.\n"
     "- Compute dates from 'Today is …'; never ask the user for the date format.\n\n"
 )
 
@@ -502,8 +568,10 @@ class Assistant:
                     args.get("description", ""),
                     args.get("location", ""),
                     args.get("attendees") or None,
+                    args.get("rrule") or "",
                 )
-                return f"event created: {args['title']} ({args['start']})"
+                rec = f", repeats {args['rrule']}" if args.get("rrule") else ""
+                return f"event created: {args['title']} ({args['start']}{rec})"
             if name == "edit_event":
 
                 def when2(v: str):
@@ -518,6 +586,53 @@ class Assistant:
             if name == "delete_event":
                 await d.delete_event(args["uid"])
                 return f"event deleted: {args['uid'][:8]}"
+            if name == "lists":
+                act = args.get("action", "show")
+                title = (args.get("title") or "").strip()
+                items = [str(x) for x in (args.get("items") or [])]
+                if act == "show":
+                    ls = d.db.custom_lists()
+                    return json.dumps(
+                        [
+                            {
+                                "title": x["title"],
+                                "items": x["items"],
+                                "printed": bool(x["printed_at"]),
+                            }
+                            for x in ls
+                        ]
+                    )
+                if not title:
+                    return "error: title required"
+                existing = d.db.find_custom_list(title)
+                if act == "save":
+                    lid = d.db.save_custom_list(title, items, existing["id"] if existing else None)
+                    return f"saved list '{title}' with {len(items)} items (id {lid})"
+                if act == "add":
+                    cur = existing["items"] if existing else []
+                    lid = d.db.save_custom_list(
+                        existing["title"] if existing else title,
+                        cur + items,
+                        existing["id"] if existing else None,
+                    )
+                    return f"added {len(items)} to '{existing['title'] if existing else title}'"
+                if existing is None:
+                    return f"error: no list named '{title}'"
+                if act == "remove":
+                    low = [x.lower() for x in items]
+                    keep = [x for x in existing["items"] if x.lower() not in low]
+                    d.db.save_custom_list(existing["title"], keep, existing["id"])
+                    return (
+                        f"removed {len(existing['items']) - len(keep)} from '{existing['title']}'"
+                    )
+                if act == "print":
+                    return json.dumps(await d.print_custom_list(existing["id"]))
+                if act == "delete":
+                    d.db.delete_custom_list(existing["id"])
+                    return f"deleted list '{existing['title']}'"
+                return f"unknown list action {act}"
+            if name == "print_ticket":
+                return json.dumps(await d.print_ticket(dict(args)))
             if name == "get_settings":
                 return json.dumps(d.settings_dict())
             if name == "set_setting":

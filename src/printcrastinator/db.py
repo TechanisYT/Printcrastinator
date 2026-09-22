@@ -63,6 +63,14 @@ CREATE TABLE IF NOT EXISTS quotes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     text TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS custom_lists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    items_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    printed_at TEXT
+);
 CREATE TABLE IF NOT EXISTS kv (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -308,3 +316,58 @@ class Database:
         for q in defaults:
             self.add_quote(q)
         self.kv_set("quotes_seeded", "1")
+
+    # ---- custom lists (shopping lists etc.) ---------------------------------------------
+
+    def custom_lists(self) -> list[dict[str, Any]]:
+        with self.connect() as con:
+            rows = [
+                dict(r) for r in con.execute("SELECT * FROM custom_lists ORDER BY updated_at DESC")
+            ]
+        for r in rows:
+            r["items"] = json.loads(r.pop("items_json"))
+        return rows
+
+    def custom_list(self, list_id: int) -> dict[str, Any] | None:
+        with self.connect() as con:
+            row = con.execute("SELECT * FROM custom_lists WHERE id = ?", (list_id,)).fetchone()
+        if not row:
+            return None
+        r = dict(row)
+        r["items"] = json.loads(r.pop("items_json"))
+        return r
+
+    def find_custom_list(self, title: str) -> dict[str, Any] | None:
+        t = title.strip().lower()
+        for r in self.custom_lists():
+            if r["title"].lower() == t:
+                return r
+        for r in self.custom_lists():
+            if t in r["title"].lower():
+                return r
+        return None
+
+    def save_custom_list(self, title: str, items: list[str], list_id: int | None = None) -> int:
+        items = [i.strip() for i in items if i.strip()]
+        with self.connect() as con:
+            if list_id is not None:
+                con.execute(
+                    "UPDATE custom_lists SET title = ?, items_json = ?, updated_at = ?"
+                    " WHERE id = ?",
+                    (title.strip(), json.dumps(items), _now(), list_id),
+                )
+                return list_id
+            cur = con.execute(
+                "INSERT INTO custom_lists(title, items_json, created_at, updated_at)"
+                " VALUES (?, ?, ?, ?)",
+                (title.strip(), json.dumps(items), _now(), _now()),
+            )
+            return int(cur.lastrowid)
+
+    def mark_list_printed(self, list_id: int) -> None:
+        with self.connect() as con:
+            con.execute("UPDATE custom_lists SET printed_at = ? WHERE id = ?", (_now(), list_id))
+
+    def delete_custom_list(self, list_id: int) -> None:
+        with self.connect() as con:
+            con.execute("DELETE FROM custom_lists WHERE id = ?", (list_id,))

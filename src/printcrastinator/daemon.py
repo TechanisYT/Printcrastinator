@@ -740,6 +740,7 @@ class Daemon:
         description: str = "",
         location: str = "",
         attendees: list[str] | None = None,
+        rrule: str = "",
     ) -> str:
         uid = await asyncio.to_thread(
             CalDavClient(self.cfg.nextcloud, self.db).create_event,
@@ -750,6 +751,7 @@ class Daemon:
             description=description,
             location=location,
             attendees=attendees,
+            rrule=rrule,
         )
         self.db.log("event", True, f"created: {title}")
         await self._refresh_after_write()
@@ -777,6 +779,32 @@ class Daemon:
         async with self._lock:
             await self._refresh_sources(date.today())
             self.last_poll_at = time.time()
+
+    # ---- custom lists and tickets --------------------------------------------------------
+
+    async def print_custom_list(self, list_id: int) -> dict[str, Any]:
+        lst = self.db.custom_list(list_id)
+        if lst is None:
+            raise LookupError(f"list {list_id} not found")
+        img = render_image.render(
+            layout.list_receipt(
+                lst["title"],
+                lst["items"],
+                date.today(),
+                self.cfg.ui.language,
+                self.layout_options(),
+            )
+        )
+        await asyncio.to_thread(self.printer.print_image, img)
+        self.db.mark_list_printed(list_id)
+        self.db.log("list", True, f"{lst['title']}: {len(lst['items'])} items")
+        return {"printed": True, "title": lst["title"], "items": len(lst["items"])}
+
+    async def print_ticket(self, ticket: dict[str, Any]) -> dict[str, Any]:
+        img = render_image.render(layout.ticket_receipt(ticket, self.cfg.ui.language))
+        await asyncio.to_thread(self.printer.print_image, img)
+        self.db.log("ticket", True, ticket.get("title", "")[:80])
+        return {"printed": True, "title": ticket.get("title", "")}
 
     def calendars(self) -> list[dict[str, Any]]:
         """Writable Nextcloud calendars (extras are read-only)."""

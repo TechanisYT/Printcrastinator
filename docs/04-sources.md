@@ -39,7 +39,8 @@ config file, not against another process running as the same user.
 
 ### Write-back
 
-Events: `save_event`, `update_event` (SUMMARY, DTSTART/DTEND, DESCRIPTION, LOCATION,
+Events: `save_event` (optionally with RRULE from `rrule_from_text`: shorthand words or a raw
+rule), `update_event` (SUMMARY, DTSTART/DTEND, DESCRIPTION, LOCATION, RRULE,
 ATTENDEE list as `Name <mail>`; ORGANIZER is set from the principal's
 `calendar-user-address-set` so Nextcloud sends invitations), `delete_event`. Attendees are
 parsed back as CN or mail address and printed under the event ("with Anna, Bob · @ Room 3").

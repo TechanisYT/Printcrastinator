@@ -487,3 +487,17 @@ def multi_day_calendar(days: list[tuple[str, list[TimelineEvent], list[str]]]) -
         if rotated.width < WIDTH
         else rotated
     )
+
+
+def qr_image(data: str, size: int = 176) -> Image.Image:
+    """A crisp 1-bit QR code scaled to about `size` px (whole module multiples)."""
+    import qrcode
+
+    q = qrcode.QRCode(border=1, box_size=1, error_correction=qrcode.constants.ERROR_CORRECT_M)
+    q.add_data(data)
+    q.make(fit=True)
+    modules = q.modules_count + 2
+    box = max(2, size // modules)
+    q.box_size = box
+    img = q.make_image(fill_color="black", back_color="white").convert("L")
+    return img.point(lambda p: 255 if p > THRESHOLD else 0).convert("1")

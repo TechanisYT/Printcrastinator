@@ -339,6 +339,56 @@ def calendar_receipt(
     return r
 
 
+def list_receipt(
+    title: str, items: list[str], day: date, lang: str = "en", opt: Options | None = None
+) -> Receipt:
+    """A saved custom list (shopping list …): title, then one checkbox per item."""
+    opt = opt or Options()
+    r = Receipt()
+    if opt.logo:
+        r.add(Picture(opt.logo, opt.logo_max_height, opt.logo_dither), Spacer(10))
+    r.add(Rule(3), Spacer(8), Text(title.upper(), "section", "center"))
+    r.add(Text(i18n.date_line(lang, day), "small", "center", wrap=False), Spacer(6), Rule(3))
+    r.add(Spacer(12))
+    for item in items:
+        r.add(CheckItem(item))
+    if not items:
+        r.add(Text("—", "body", "center"))
+    r.add(Spacer(10), Rule(1), Spacer(12), TearLine())
+    return r
+
+
+def ticket_receipt(t: dict, lang: str = "en") -> Receipt:
+    """A ticket: kind label, big title, subtitle, detail rows, optional QR code, note.
+    Perforation lines top and bottom so it can be cut out."""
+    from ..render import image as render_image
+
+    r = Receipt()
+    r.add(TearLine(), Spacer(10), Rule(3), Spacer(6))
+    r.add(Text((t.get("kind") or "TICKET").upper(), "small", "center", wrap=False))
+    r.add(Spacer(4), Text(t.get("title", ""), "headline", "center"))
+    if t.get("subtitle"):
+        r.add(Spacer(2), Text(t["subtitle"], "body", "center"))
+    r.add(Spacer(8), Rule(1), Spacer(8))
+    rows = [
+        (i18n.label(lang, "tk_when"), t.get("when", "")),
+        (i18n.label(lang, "tk_where"), t.get("where", "")),
+        (i18n.label(lang, "tk_seat"), t.get("seat", "")),
+        (i18n.label(lang, "tk_name"), t.get("holder", "")),
+        (i18n.label(lang, "tk_price"), t.get("price", "")),
+    ]
+    for label, value in rows:
+        if value:
+            r.add(EventLine(label, value))
+    if t.get("code"):
+        r.add(Spacer(6), RawImage(render_image.qr_image(str(t["code"]), 176)), Spacer(2))
+        r.add(Text(str(t["code"]), "small", "center"))
+    if t.get("note"):
+        r.add(Spacer(6), Text(t["note"], "small", "center"))
+    r.add(Spacer(8), Rule(3), Spacer(10), TearLine())
+    return r
+
+
 def custom_receipt(
     title: str,
     groups: list[TaskGroup],

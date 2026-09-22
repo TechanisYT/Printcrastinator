@@ -30,7 +30,9 @@ Config section `ai`: `enabled`, `url` (default `http://localhost:11434`), `model
   (title, notes, due, start, priority, tags/labels, location, assignees, stack), `create_event`
   / `edit_event` / `delete_event` (calendar, times, description, location, attendees), `get_settings`, `set_setting`, `print_receipt`
   (any day), `print_calendar` (events only, one day or a rotated multi-day table),
-  `print_tasks` / `preview_tasks` (filtered custom receipts: list or stack ids, due
+  `lists` (show/save/add/remove/print/delete saved lists), `print_ticket`, recurring events via
+  `rrule` on create/edit (daily, weekly, weekdays, monthly, yearly, "every 2 weeks", "every
+  monday and thursday", or a raw RRULE), `print_tasks` / `preview_tasks` (filtered custom receipts: list or stack ids, due
   range, overdue only, tags, text), `printer_action`. The system prompt carries guidelines for
   common phrasings ("print the X list under deck Y", "tasks from list L due next week") and
   tells the model to preview before printing when a filter is unclear. Tool calls are executed by the daemon and the loop continues for up to
@@ -60,6 +62,8 @@ daemon's HTTP API:
 | `print_today(force?, layout?)` / `print_day(day, layout?)` | print the daily receipt for today / any day |
 | `print_calendar(day_from, day_to?)` | events only, single day or side-by-side range |
 | `select_tasks(…)` / `print_tasks(title, …)` | filter open tasks / print them as a custom receipt |
+| `custom_lists` / `save_custom_list` / `print_custom_list` / `delete_custom_list` | saved lists |
+| `print_ticket(…)` | ticket with QR code |
 | `daemon_status` | health |
 
 Register in Claude Code: `claude mcp add printcrastinator -- pc mcp`
