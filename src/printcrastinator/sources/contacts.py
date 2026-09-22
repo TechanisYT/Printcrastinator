@@ -133,7 +133,8 @@ class ContactsClient:
         report = (
             '<?xml version="1.0"?><c:addressbook-query xmlns:d="DAV:" '
             'xmlns:c="urn:ietf:params:xml:ns:carddav"><d:prop><d:getetag/><c:address-data/>'
-            '</d:prop><c:filter><c:prop-filter name="FN"><c:text-match collation="i;unicode-casemap" '
+            '</d:prop><c:filter><c:prop-filter name="FN">'
+            '<c:text-match collation="i;unicode-casemap" '
             f'match-type="contains">{q}</c:text-match></c:prop-filter></c:filter></c:addressbook-query>'
         )
         found: list[Contact] = []
