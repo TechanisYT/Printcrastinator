@@ -64,6 +64,62 @@ TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "get_settings",
+            "description": "Read the current Printcrastinator settings (all sections).",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "set_setting",
+            "description": (
+                "Change one setting: section (daily, printer, slips, screen, ui, logo, ai, "
+                "server, nextcloud) and key as shown by get_settings. Value as string."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "section": {"type": "string"},
+                    "key": {"type": "string"},
+                    "value": {"type": "string"},
+                },
+                "required": ["section", "key", "value"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "print_receipt",
+            "description": "Print today's receipt now. layout: list or cards (empty = configured).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "force": {"type": "boolean", "description": "print even if already printed"},
+                    "layout": {"type": "string"},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "printer_action",
+            "description": (
+                "Printer/test actions: test_print, density_sweep, feed, test_notification, "
+                "full_cycle (fetch+print+notify+window), poll (fetch from Nextcloud now)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {"action": {"type": "string"}},
+                "required": ["action"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "create_task",
             "description": "Create a new task in a task list or Deck stack.",
             "parameters": {
@@ -99,6 +155,16 @@ def agenda_context(agenda: DailyAgenda, lists: list[dict[str, Any]], today: date
         )
     if not agenda.all_tasks:
         lines.append("- (none)")
+    lines.append(
+        f"Counts: {len(agenda.all_tasks)} open tasks shown, {len(agenda.overdue)} overdue, "
+        f"{len(agenda.due_today)} due today, {len(agenda.always_items)} from always-print lists"
+        + (
+            f", {agenda.overdue_hidden} older overdue hidden by filters"
+            if agenda.overdue_hidden
+            else ""
+        )
+        + ". Use these numbers, do not count the list yourself."
+    )
     lines.append("Available lists for new tasks (id | name):")
     for ls in lists:
         lines.append(f"- {ls['id']} | {ls['name']} ({ls['source']})")
@@ -107,7 +173,8 @@ def agenda_context(agenda: DailyAgenda, lists: list[dict[str, Any]], today: date
 
 SYSTEM = (
     "You are Printcrastinator, a terse assistant for a personal to-do list synced with Nextcloud. "
-    "You can complete, reopen, edit and create tasks with the provided tools. Always use the uid "
+    "You can complete, reopen, edit and create tasks, read and change settings, print the receipt "
+    "and run printer tests with the provided tools. Always use the uid "
     "exactly as listed. When the user refers to a task by a rough description, pick the best "
     "match; if it is ambiguous, ask. After tool calls, confirm in one short sentence. Answer in "
     "the language the user writes in. Never invent tasks that are not in the list.\n\n"
@@ -187,6 +254,36 @@ class Assistant:
                     args["list_id"], args["title"], due, args.get("notes", "")
                 )
                 return f"created {uid}: {args['title']}"
+            if name == "get_settings":
+                return json.dumps(d.settings_dict())
+            if name == "set_setting":
+                return d.apply_setting(args["section"], args["key"], args["value"])
+            if name == "print_receipt":
+                r = await d.maybe_print_daily(
+                    force=bool(args.get("force", True)),
+                    reason="ai",
+                    layout_mode=args.get("layout") or None,
+                )
+                return json.dumps(r)
+            if name == "printer_action":
+                act = args.get("action", "")
+                if act == "test_print":
+                    await d.print_test()
+                    return "test print sent"
+                if act == "density_sweep":
+                    await d.print_test(sweep=True)
+                    return "density sweep sent"
+                if act == "feed":
+                    await d.feed()
+                    return "paper fed"
+                if act == "test_notification":
+                    return d.test_notification()
+                if act == "full_cycle":
+                    return json.dumps(await d.test_full_cycle())
+                if act == "poll":
+                    ok = await d.poll_once()
+                    return f"polled, ok={ok}, {d.status()['counts']}"
+                return f"unknown action {act}"
             return f"unknown tool {name}"
         except Exception as exc:
             return f"error: {exc}"
@@ -211,7 +308,8 @@ class Assistant:
                     except ValueError:
                         args = {}
                 result = await self._run_tool(fn.get("name", ""), args)
-                actions.append(result)
+                if fn.get("name") not in ("get_settings",):
+                    actions.append(result)
                 messages.append(
                     {"role": "tool", "content": result, "tool_name": fn.get("name", "")}
                 )

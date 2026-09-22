@@ -490,3 +490,38 @@ class Daemon:
                 }
             )
         return out
+
+    # ---- settings access (AI assistant, MCP) ---------------------------------------------------
+
+    def settings_dict(self) -> dict[str, Any]:
+        d = self.cfg.to_dict()
+        if d["nextcloud"].get("app_password"):
+            d["nextcloud"]["app_password"] = "********"
+        return d
+
+    def apply_setting(self, section: str, key: str, value: Any) -> str:
+        """Set cfg.<section>.<key> with type coercion, save and reload. Returns a message."""
+        from dataclasses import fields, is_dataclass
+
+        from .config import save_config
+
+        sec = getattr(self.cfg, section, None)
+        if sec is None or not is_dataclass(sec):
+            raise ValueError(f"unknown section {section!r}; sections: {list(self.cfg.to_dict())}")
+        names = {f.name for f in fields(sec)}
+        if key not in names:
+            raise ValueError(f"unknown key {key!r} in {section}; keys: {sorted(names)}")
+        current = getattr(sec, key)
+        if isinstance(current, bool):
+            if isinstance(value, str):
+                value = value.strip().lower() in ("1", "true", "yes", "on")
+            else:
+                value = bool(value)
+        elif isinstance(current, int):
+            value = int(value)
+        else:
+            value = str(value)
+        setattr(sec, key, value)
+        save_config(self.cfg)
+        self.reload_config(self.cfg)
+        return f"{section}.{key} = {value!r}"

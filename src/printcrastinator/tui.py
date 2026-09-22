@@ -38,7 +38,7 @@ class TaskRow(Static):
 
     def refresh_text(self) -> None:
         t = self.item
-        box = "[b]\\[x][/b]" if self.done else "[b yellow]\\[ ][/b yellow]"
+        box = "[b green]☑[/b green]  " if self.done else "[b yellow]☐[/b yellow]  "
         title = t["title"].replace("[", "\\[")
         if self.done:
             title = f"[strike]{title}[/strike]"
@@ -53,7 +53,9 @@ class TaskRow(Static):
             else:
                 marker = f"  [dim]{due.strftime('%d.%m')}[/dim]"
         busy = "  [yellow]…[/yellow]" if self.busy else ""
-        lines = [f"{box} {title}{marker}{busy}"]
+        src = i18n.label(self.lang, "src_" + t["source"])
+        where = f"  [dim]{t['list_name']} · {src}[/dim]".replace("[dim]", "[dim]", 1)
+        lines = [f"{box}{title}{marker}{where}{busy}"]
         notes = (t.get("notes") or "").strip()
         if notes:
             first = notes.splitlines()[0].replace("[", "\\[")
@@ -72,9 +74,10 @@ class TaskView(App):
     TITLE = "Printcrastinator"
     CSS = """
     #events { height: auto; max-height: 8; padding: 0 1; border: round $primary; }
-    #tasks { height: 1fr; border: round $secondary; }
+    #tasks { height: 1fr; border: round $secondary; border-title-color: $secondary; }
     #ai-panel { height: auto; max-height: 12; border: round $accent; padding: 0 1; }
-    #ai-input { dock: bottom; }
+    #ai-input { dock: bottom; border: round $accent; background: $surface; }
+    #ai-input:focus { border: round $warning; }
     .section { color: $accent; text-style: bold; padding: 1 1 0 1; }
     #summary { color: $text; }
     """
@@ -115,8 +118,12 @@ class TaskView(App):
         yield Header()
         with Vertical():
             yield Static(id="events")
-            yield VerticalScroll(id="tasks")
-            with VerticalScroll(id="ai-panel"):
+            tasks = VerticalScroll(id="tasks")
+            tasks.border_title = "Tasks"
+            yield tasks
+            panel = VerticalScroll(id="ai-panel")
+            panel.border_title = "AI"
+            with panel:
                 yield Static("", id="summary")
             yield Input(
                 placeholder="Ask or tell the AI (e.g. 'I paid the electricity bill'), Enter sends",
@@ -167,23 +174,16 @@ class TaskView(App):
 
         box = self.query_one("#tasks", VerticalScroll)
         box.remove_children()
-        groups: list[tuple[str, list[dict[str, Any]]]] = []
-        if self.cfg.daily.group_by_list:
-            by: dict[str, list[dict[str, Any]]] = {}
-            for t in a["overdue"] + a["due_today"] + [x for g in a["always"] for x in g["items"]]:
-                key = f"{t['list_name']} ({i18n.label(self.lang, 'src_' + t['source'])})"
-                by.setdefault(key, []).append(t)
-            groups = sorted(by.items(), key=lambda kv: kv[0].lower())
-        else:
-            if a["overdue"]:
-                groups.append((i18n.label(self.lang, "overdue"), a["overdue"]))
-            if a["due_today"]:
-                groups.append((i18n.label(self.lang, "due_today"), a["due_today"]))
-            for g in a["always"]:
-                groups.append((g["title"], g["items"]))
-        if not groups:
+        sections: list[tuple[str, list[dict[str, Any]]]] = []
+        if a["overdue"]:
+            sections.append((i18n.label(self.lang, "overdue"), a["overdue"]))
+        if a["due_today"]:
+            sections.append((i18n.label(self.lang, "due_today"), a["due_today"]))
+        for g in a["always"]:
+            sections.append((g["title"], g["items"]))
+        if not sections:
             box.mount(Static(f"[dim]{i18n.label(self.lang, 'no_tasks')}[/dim]", classes="section"))
-        for name, items in groups:
+        for name, items in sections:
             box.mount(Static(f"{name}  [dim]{len(items)}[/dim]", classes="section"))
             for t in items:
                 box.mount(TaskRow(t, today, self.lang))

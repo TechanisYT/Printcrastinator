@@ -81,6 +81,21 @@ def build_server():
         return _api("POST", "/api/print/daily", params={"force": force, "layout_mode": layout})
 
     @srv.tool()
+    def get_settings() -> dict:
+        """All Printcrastinator settings (app password masked)."""
+        return _api("GET", "/api/settings")
+
+    @srv.tool()
+    def set_setting(section: str, key: str, value: str) -> dict:
+        """Change one setting, e.g. section='daily', key='layout', value='cards'."""
+        return _api("POST", "/api/settings", json={"section": section, "key": key, "value": value})
+
+    @srv.tool()
+    def printer_action(action: str) -> dict:
+        """test_print, density_sweep, feed, test_notification, full_cycle or poll."""
+        return _api("POST", "/api/printer/action", params={"action": action})
+
+    @srv.tool()
     def daemon_status() -> dict:
         """Daemon health, printer state, last poll, today's print status."""
         return _api("GET", "/api/status")

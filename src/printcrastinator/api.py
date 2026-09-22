@@ -24,6 +24,12 @@ class ChatBody(BaseModel):
     messages: list[dict[str, str]]
 
 
+class SettingBody(BaseModel):
+    section: str
+    key: str
+    value: str | int | bool
+
+
 class TaskCreate(BaseModel):
     list_id: str
     title: str
@@ -118,6 +124,27 @@ def make_router(daemon: Daemon) -> APIRouter:
     @r.post("/notify/test")
     async def notify_test():
         return {"result": daemon.test_notification()}
+
+    @r.get("/settings")
+    async def get_settings():
+        return daemon.settings_dict()
+
+    @r.post("/settings")
+    async def set_setting(body: SettingBody):
+        try:
+            return {"result": daemon.apply_setting(body.section, body.key, body.value)}
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @r.post("/printer/action")
+    async def printer_action(action: str):
+        from .ai import Assistant
+
+        return {
+            "result": await Assistant(daemon.cfg.ai, daemon)._run_tool(
+                "printer_action", {"action": action}
+            )
+        }
 
     @r.get("/ai/status")
     async def ai_status():
