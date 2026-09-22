@@ -43,11 +43,17 @@ install -Dm644 "$HERE/packaging/printcrastinator.service" "$HOME/.config/systemd
 systemctl --user daemon-reload
 systemctl --user enable --now printcrastinator.service
 
+# `pc` launcher on PATH: `pc` opens the task view from any terminal
+install -Dm755 "$HERE/packaging/pc" "$HOME/.local/bin/pc"
+case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) echo "note: add ~/.local/bin to your PATH to use 'pc'";; esac
+
 cat <<MSG
 
 Done.
   Web UI:   http://127.0.0.1:8555   (enter Nextcloud URL, user and an app password there)
   Logs:     journalctl --user -u printcrastinator -f
   Preview:  uv run --project "$TARGET" printcrastinator preview /tmp/receipt.png
+  Terminal: pc            (interactive task view; pc --help for more)
+  MCP:      claude mcp add printcrastinator -- pc mcp
 If the printer was plugged in before the udev rule, unplug and replug it once.
 MSG

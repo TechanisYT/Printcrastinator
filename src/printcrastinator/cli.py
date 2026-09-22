@@ -55,20 +55,27 @@ def _cmd_serve(args: argparse.Namespace) -> int:
 
 
 def _cmd_show(args: argparse.Namespace) -> int:
+    cfg = load_config()
+    if not args.plain:
+        from .tui import run
+
+        run(cfg)
+        return 0
     from rich.console import Console
 
-    from . import client
+    from . import client, logos
+    from .db import Database
     from .receipt import layout
     from .render import terminal
 
-    cfg = load_config()
     console = Console()
     if not cfg.nextcloud.configured:
         console.print(f"[yellow]Nextcloud not configured. Open {cfg.api_base} to set it up.[/]")
         return 1
     result = client.print_daily(cfg, force=False)
     ag = client.get_agenda_or_build(cfg)
-    terminal.render(layout.daily_receipt(ag, cfg.ui.language), console)
+    opt = logos.options(cfg, Database())
+    terminal.render(layout.daily_receipt(ag, cfg.ui.language, cfg.daily.layout, opt), console)
     if result.get("printed"):
         console.print("[green]Printed today's receipt.[/]")
     else:
@@ -79,6 +86,13 @@ def _cmd_show(args: argparse.Namespace) -> int:
             input()
         except (EOFError, KeyboardInterrupt):
             pass
+    return 0
+
+
+def _cmd_mcp(args: argparse.Namespace) -> int:
+    from .mcp_server import run
+
+    run()
     return 0
 
 
@@ -113,9 +127,13 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("serve", help="run daemon, HTTP API and web UI")
     s.set_defaults(func=_cmd_serve)
 
-    s = sub.add_parser("show", help="show today's agenda in the terminal (triggers daily print)")
-    s.add_argument("--no-wait", action="store_true")
+    s = sub.add_parser("show", help="interactive task view (default), triggers the daily print")
+    s.add_argument("--plain", action="store_true", help="static receipt-style output instead")
+    s.add_argument("--no-wait", action="store_true", help="with --plain: exit immediately")
     s.set_defaults(func=_cmd_show)
+
+    s = sub.add_parser("mcp", help="run the MCP server on stdio (for Claude Code etc.)")
+    s.set_defaults(func=_cmd_mcp)
 
     s = sub.add_parser("print-today", help="print today's receipt")
     s.add_argument("--force", action="store_true", help="ignore the once-per-day gate")

@@ -1,0 +1,4 @@
+#!/bin/sh
+# Printcrastinator launcher: `pc` opens the task view, `pc <command>` runs any subcommand.
+SRC="${PRINTCRASTINATOR_SRC:-$HOME/.local/share/printcrastinator/src}"
+exec uv run --frozen --project "$SRC" printcrastinator "${@:-show}"

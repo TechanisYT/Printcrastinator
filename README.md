@@ -23,6 +23,11 @@ lists as "always print".
 - Web UI on `127.0.0.1:8555`: credentials, task hiding (per occurrence for recurring tasks),
   Deck stack and task list rules, calendar selection, printer test and density tuning, receipt
   preview.
+- Interactive terminal view (`pc`): click tasks to cross them off or reopen them in Nextcloud,
+  see notes and tags, print, and talk to a local AI.
+- Local AI via Ollama: a morning briefing and natural-language task editing ("I paid the
+  electricity bill", "add 'order screws' to Projects for Friday") with tool calls, fully offline.
+- MCP server (`pc mcp`) exposing the same task tools to Claude Code or any MCP client.
 - Wake-aware: the daily check also runs after resume from sleep and after screen unlock.
 - No credentials in the repo. Config lives in `~/.config/printcrastinator/config.toml`
   (mode 0600), state in `~/.local/state/printcrastinator/`.
@@ -39,6 +44,7 @@ that accepts `GS v 0` raster images should work; adjust `printer.width_px` for 8
 - Python 3.13+ (installed by `uv` if missing)
 - A Nextcloud account with the Tasks, Deck and Calendar apps
 - Optional: Alacritty for the terminal window at login, libnotify for notifications
+- Optional: [Ollama](https://ollama.com) with a tool-capable model (default `gemma4:12B`) for the AI features
 
 ## Install
 
@@ -59,7 +65,9 @@ App passwords work even when your Nextcloud login goes through an SSO provider.
 
 ```sh
 printcrastinator serve                 # daemon + web UI (run by systemd)
-printcrastinator show                  # today's agenda in the terminal, triggers the daily print
+printcrastinator show                  # interactive task view (also: pc), triggers the daily print
+printcrastinator show --plain          # static receipt-style output
+printcrastinator mcp                   # MCP server on stdio
 printcrastinator print-today [--force] # print now
 printcrastinator test-print            # calibration receipt with a density sweep
 printcrastinator preview out.png       # render the receipt to PNG (--kind sample|empty|slip|live)
@@ -81,7 +89,9 @@ Everything is editable in the web UI. The TOML file has these sections:
 | `slips` | `enabled_tasks`, `enabled_deck`, `debounce_seconds` |
 | `server` | `host`, `port`, `poll_interval` |
 | `screen` | `notify`, `terminal` |
-| `ui` | `language` (`en` or `de`) |
+| `ui` | `language` (`en` or `de`), `dark` |
+| `logo` | `mode` (off/random/fixed), `file`, `max_height`, `dither` |
+| `ai` | `enabled`, `url`, `model`, `num_ctx`, `max_tokens`, `think`, `summary_on_open` |
 
 ## Development
 
@@ -94,7 +104,7 @@ uv run printcrastinator preview /tmp/r.png --kind sample
 ```
 
 Project documentation is in [`docs/`](docs/): overview, architecture, receipt design, Nextcloud
-sources, daemon behaviour, UI/API/CLI and system integration.
+sources, daemon behaviour, UI/API/CLI, system integration, terminal view / AI / MCP.
 
 ## License
 

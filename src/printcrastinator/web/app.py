@@ -531,6 +531,27 @@ def sec_settings(daemon: Daemon, dark: ui.dark_mode) -> None:
             "Poll interval (seconds)", value=cfg.server.poll_interval, min=30, max=3600
         )
     with ui.card().classes("w-full"):
+        ui.label("Local AI (Ollama)").classes("font-bold")
+        ui.label(
+            "Morning briefing and natural-language task editing in the terminal view. "
+            "Needs a running Ollama with the chosen model pulled."
+        ).classes("text-sm opacity-70")
+        ai_sw = ui.switch("Enable AI assistant", value=cfg.ai.enabled)
+        ai_url = ui.input("Ollama URL", value=cfg.ai.url).classes("w-96")
+        ai_model = ui.input("Model", value=cfg.ai.model).classes("w-96")
+        ai_summary = ui.switch(
+            "Briefing when the terminal view opens", value=cfg.ai.summary_on_open
+        )
+        ai_think = ui.switch("Allow model thinking (slow)", value=cfg.ai.think)
+
+        async def ai_test():
+            from ..ai import Assistant
+
+            probe = replace(cfg.ai, url=ai_url.value.strip(), model=ai_model.value.strip())
+            ui.notify(await Assistant(probe, daemon).available(), type="info")
+
+        ui.button("Test AI", icon="smart_toy", on_click=ai_test).props("outline")
+    with ui.card().classes("w-full"):
         ui.label("On screen").classes("font-bold")
         notify_sw = ui.switch(
             "Desktop notification when the daily check runs", value=cfg.screen.notify
@@ -589,6 +610,14 @@ def sec_settings(daemon: Daemon, dark: ui.dark_mode) -> None:
             debounce_seconds=int(debounce.value),
         )
         cfg.server = replace(cfg.server, poll_interval=int(poll.value))
+        cfg.ai = replace(
+            cfg.ai,
+            enabled=bool(ai_sw.value),
+            url=ai_url.value.strip() or "http://localhost:11434",
+            model=ai_model.value.strip() or "gemma4:12B",
+            summary_on_open=bool(ai_summary.value),
+            think=bool(ai_think.value),
+        )
         cfg.screen = replace(cfg.screen, notify=bool(notify_sw.value), terminal=bool(term_sw.value))
         save_config(cfg)
         daemon.reload_config(cfg)

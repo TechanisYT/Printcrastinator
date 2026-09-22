@@ -112,6 +112,20 @@ class LogoConfig:
 
 
 @dataclass
+class AiConfig:
+    enabled: bool = True
+    url: str = "http://localhost:11434"
+    model: str = "gemma4:12B"
+    num_ctx: int = 16384
+    max_tokens: int = 600
+    # Let reasoning models think before answering (slow: thousands of hidden tokens).
+    think: bool = False
+    timeout: int = 180
+    # Show an AI morning briefing when the terminal view opens.
+    summary_on_open: bool = True
+
+
+@dataclass
 class ServerConfig:
     host: str = "127.0.0.1"
     port: int = 8555
@@ -140,6 +154,7 @@ class Config:
     screen: ScreenConfig = field(default_factory=ScreenConfig)
     ui: UiConfig = field(default_factory=UiConfig)
     logo: LogoConfig = field(default_factory=LogoConfig)
+    ai: AiConfig = field(default_factory=AiConfig)
 
     def to_dict(self) -> dict[str, Any]:
         return _asdict(self)

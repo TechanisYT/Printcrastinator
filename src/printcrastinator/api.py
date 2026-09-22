@@ -20,6 +20,10 @@ class TaskEdit(BaseModel):
     notes: str | None = None
 
 
+class ChatBody(BaseModel):
+    messages: list[dict[str, str]]
+
+
 class TaskCreate(BaseModel):
     list_id: str
     title: str
@@ -114,6 +118,42 @@ def make_router(daemon: Daemon) -> APIRouter:
     @r.post("/notify/test")
     async def notify_test():
         return {"result": daemon.test_notification()}
+
+    @r.get("/ai/status")
+    async def ai_status():
+        from .ai import Assistant
+
+        if not daemon.cfg.ai.enabled:
+            return {"enabled": False, "status": "disabled"}
+        return {
+            "enabled": True,
+            "model": daemon.cfg.ai.model,
+            "status": await Assistant(daemon.cfg.ai, daemon).available(),
+        }
+
+    @r.post("/ai/summary")
+    async def ai_summary():
+        from .ai import Assistant
+
+        if not daemon.cfg.ai.enabled:
+            raise HTTPException(400, "AI disabled")
+        try:
+            return {
+                "summary": await Assistant(daemon.cfg.ai, daemon).summary(await daemon.agenda())
+            }
+        except Exception as exc:
+            raise HTTPException(502, f"AI failed: {exc}") from exc
+
+    @r.post("/ai/chat")
+    async def ai_chat(body: ChatBody):
+        from .ai import Assistant
+
+        if not daemon.cfg.ai.enabled:
+            raise HTTPException(400, "AI disabled")
+        try:
+            return await Assistant(daemon.cfg.ai, daemon).chat(body.messages, await daemon.agenda())
+        except Exception as exc:
+            raise HTTPException(502, f"AI failed: {exc}") from exc
 
     @r.post("/test/cycle")
     async def test_cycle():
