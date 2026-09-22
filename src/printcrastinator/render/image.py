@@ -18,6 +18,7 @@ from ..receipt.model import (
     SectionHeader,
     Size,
     Spacer,
+    SubHeader,
     TearLine,
     Text,
 )
@@ -142,6 +143,18 @@ def _section(c: _Canvas, b: SectionHeader) -> None:
     c.y += 3 + 8
 
 
+def _subheader(c: _Canvas, b: SubHeader) -> None:
+    lh = _line_height("small")
+    c.ensure(lh + 6)
+    c.y += 2
+    _draw_text(c, MARGIN, b.text, "small")
+    w = text_width(b.text, "small")
+    # thin rule to the right of the label
+    if MARGIN + w + 8 < WIDTH - MARGIN:
+        c.draw.rectangle((MARGIN + w + 8, c.y + lh // 2, WIDTH - MARGIN - 1, c.y + lh // 2), fill=0)
+    c.y += lh + 4
+
+
 def _event(c: _Canvas, b: EventLine) -> None:
     lh = _line_height("body")
     time_w = text_width("00:00–00:00", "small") + 10
@@ -235,6 +248,8 @@ def _render_block(c: _Canvas, b: Block) -> None:
             _text_block(c, b)
         case SectionHeader():
             _section(c, b)
+        case SubHeader():
+            _subheader(c, b)
         case EventLine():
             _event(c, b)
         case CheckItem():

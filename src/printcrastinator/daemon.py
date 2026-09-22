@@ -125,7 +125,7 @@ class Daemon:
             self.polls += 1
             if ok or self.state.tasks or self.state.cards:
                 self._queue_new_items()
-        await self.maybe_print_daily()
+        await self.maybe_print_daily(screen=True)
         await self.maybe_print_slip()
         return ok
 
@@ -229,11 +229,17 @@ class Daemon:
         async with self._lock:
             await self._refresh_sources(date.today())
             self.last_poll_at = time.time()
-        return await self.maybe_print_daily(force=True, reason="test-cycle")
+        return await self.maybe_print_daily(force=True, reason="test-cycle", screen=True)
 
     async def maybe_print_daily(
-        self, force: bool = False, reason: str = "poll", layout_mode: str | None = None
+        self,
+        force: bool = False,
+        reason: str = "poll",
+        layout_mode: str | None = None,
+        screen: bool = False,
     ) -> dict[str, Any]:
+        """screen=True (automatic morning trigger / full-cycle test) also notifies and opens the
+        terminal window. Manual prints from UI, CLI, TUI or AI stay silent."""
         today = date.today()
         now = datetime.now()
         if not force and now.hour < self.cfg.daily.earliest_hour:
@@ -250,7 +256,8 @@ class Daemon:
             return {"printed": False, "reason": "already done today"}
         if force and not self.db.daily_status(today):
             self.db.claim_daily(today)
-        self.show_on_screen(ag)
+        if screen:
+            self.show_on_screen(ag)
         on_paper = ag.has_tasks or (self.cfg.daily.print_calendar_only_days and ag.has_events)
         if not on_paper:
             self.db.mark_daily_printed(today, on_paper=False, task_count=0)

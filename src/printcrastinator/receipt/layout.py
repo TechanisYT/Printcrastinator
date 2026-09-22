@@ -15,6 +15,7 @@ from .model import (
     Rule,
     SectionHeader,
     Spacer,
+    SubHeader,
     TearLine,
     Text,
 )
@@ -77,21 +78,42 @@ def _source_label(t: TaskItem, lang: str) -> str:
     return f"{t.list_name} ({i18n.label(lang, 'src_' + t.source)})"
 
 
-def _grouped_sections(agenda: DailyAgenda, lang: str) -> list[tuple[str, list[TaskItem]]]:
-    """Tasks grouped by list/stack, each group sorted overdue first, then today, then rest."""
-    day = agenda.day
+def _by_list(items: list[TaskItem], lang: str, day: date) -> list[tuple[str, list[TaskItem]]]:
+    """Split items into (list label, items) groups; overdue oldest-first inside each group."""
     groups: dict[str, list[TaskItem]] = {}
-    for t in agenda.all_tasks:
+    for t in items:
         groups.setdefault(_source_label(t, lang), []).append(t)
 
     def rank(t: TaskItem) -> tuple:
-        late = t.days_late(day) if t.due else -(10**6)
-        return (0 if late > 0 else 1 if late == 0 else 2, -late, t.title.lower())
+        return (t.due or day, t.title.lower())
 
-    out = []
-    for name in sorted(groups, key=str.lower):
-        out.append((name, sorted(groups[name], key=rank)))
-    return out
+    return [(name, sorted(groups[name], key=rank)) for name in sorted(groups, key=str.lower)]
+
+
+def _section_items(
+    r: Receipt,
+    items: list[TaskItem],
+    agenda: DailyAgenda,
+    lang: str,
+    opt: Options,
+    *,
+    marker: bool = True,
+) -> None:
+    """Items of one section, optionally sub-grouped by list."""
+    if opt.group_by_list:
+        for name, group in _by_list(items, lang, agenda.day):
+            r.add(SubHeader(name))
+            for t in group:
+                right = _task_marker(t, agenda.day, lang) if marker else ""
+                r.add(CheckItem(t.title, right=right, meta=_notes(t, opt)))
+        return
+    for t in items:
+        right = _task_marker(t, agenda.day, lang) if marker else ""
+        meta_parts = [_source_label(t, lang)] if opt.show_list else []
+        n = _notes(t, opt)
+        if n:
+            meta_parts.append(n)
+        r.add(CheckItem(t.title, right=right, meta="\n".join(meta_parts)))
 
 
 def _status_marker(t: TaskItem, day: date, lang: str) -> str:
@@ -147,35 +169,13 @@ def daily_receipt(
         r.add(Text(i18n.label(lang, "no_tasks"), "body", "center"), Spacer(8))
         _footer(r, agenda, lang, opt)
         return r
-    if opt.group_by_list:
-        for name, items in _grouped_sections(agenda, lang):
-            r.add(SectionHeader(name, hint=str(len(items))))
-            for t in items:
-                r.add(
-                    CheckItem(
-                        t.title, right=_status_marker(t, agenda.day, lang), meta=_notes(t, opt)
-                    )
-                )
-            r.add(Spacer(14))
-        _footer(r, agenda, lang, opt)
-        return r
-
-    def meta_for(t: TaskItem) -> str:
-        parts = [_source_label(t, lang)] if opt.show_list else []
-        n = _notes(t, opt)
-        if n:
-            parts.append(n)
-        return "\n".join(parts)
-
     if agenda.overdue:
         r.add(SectionHeader(i18n.label(lang, "overdue"), hint=str(len(agenda.overdue))))
-        for t in agenda.overdue:
-            r.add(CheckItem(t.title, right=_task_marker(t, agenda.day, lang), meta=meta_for(t)))
+        _section_items(r, agenda.overdue, agenda, lang, opt)
         r.add(Spacer(14))
     if agenda.due_today:
         r.add(SectionHeader(i18n.label(lang, "due_today"), hint=str(len(agenda.due_today))))
-        for t in agenda.due_today:
-            r.add(CheckItem(t.title, meta=meta_for(t)))
+        _section_items(r, agenda.due_today, agenda, lang, opt, marker=False)
         r.add(Spacer(14))
     for group in agenda.always:
         if not group.items:

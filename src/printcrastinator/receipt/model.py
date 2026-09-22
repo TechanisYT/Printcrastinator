@@ -34,6 +34,13 @@ class SectionHeader:
 
 
 @dataclass(frozen=True)
+class SubHeader:
+    """Small group label inside a section, e.g. the task list name."""
+
+    text: str
+
+
+@dataclass(frozen=True)
 class EventLine:
     time: str  # "09:00–10:30" or "all day"
     title: str
@@ -58,7 +65,9 @@ class Picture:
     dither: bool = False
 
 
-Block = Rule | Spacer | Text | SectionHeader | EventLine | CheckItem | TearLine | Picture
+Block = (
+    Rule | Spacer | Text | SectionHeader | SubHeader | EventLine | CheckItem | TearLine | Picture
+)
 
 
 @dataclass

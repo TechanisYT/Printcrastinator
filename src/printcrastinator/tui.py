@@ -27,11 +27,14 @@ class TaskRow(Static):
     TaskRow.busy { color: $warning; }
     """
 
-    def __init__(self, task: dict[str, Any], today: date, lang: str) -> None:
+    def __init__(
+        self, task: dict[str, Any], today: date, lang: str, show_list: bool = True
+    ) -> None:
         super().__init__(markup=True)
         self.item = task
         self.today = today
         self.lang = lang
+        self.show_list = show_list
         self.done = False
         self.busy = False
         self.refresh_text()
@@ -54,7 +57,7 @@ class TaskRow(Static):
                 marker = f"  [dim]{due.strftime('%d.%m')}[/dim]"
         busy = "  [yellow]…[/yellow]" if self.busy else ""
         src = i18n.label(self.lang, "src_" + t["source"])
-        where = f"  [dim]{t['list_name']} · {src}[/dim]".replace("[dim]", "[dim]", 1)
+        where = f"  [dim]{t['list_name']} · {src}[/dim]" if self.show_list else ""
         lines = [f"{box}{title}{marker}{where}{busy}"]
         notes = (t.get("notes") or "").strip()
         if notes:
@@ -79,6 +82,7 @@ class TaskView(App):
     #ai-input { dock: bottom; border: round $accent; background: $surface; }
     #ai-input:focus { border: round $warning; }
     .section { color: $accent; text-style: bold; padding: 1 1 0 1; }
+    .subsection { padding: 0 1; margin-top: 1; }
     #summary { color: $text; }
     """
     BINDINGS = [
@@ -185,8 +189,18 @@ class TaskView(App):
             box.mount(Static(f"[dim]{i18n.label(self.lang, 'no_tasks')}[/dim]", classes="section"))
         for name, items in sections:
             box.mount(Static(f"{name}  [dim]{len(items)}[/dim]", classes="section"))
-            for t in items:
-                box.mount(TaskRow(t, today, self.lang))
+            if self.cfg.daily.group_by_list:
+                by: dict[str, list[dict[str, Any]]] = {}
+                for t in items:
+                    key = f"{t['list_name']} · {i18n.label(self.lang, 'src_' + t['source'])}"
+                    by.setdefault(key, []).append(t)
+                for key in sorted(by, key=str.lower):
+                    box.mount(Static(f"[dim b]{key}[/dim b]", classes="subsection"))
+                    for t in by[key]:
+                        box.mount(TaskRow(t, today, self.lang, show_list=False))
+            else:
+                for t in items:
+                    box.mount(TaskRow(t, today, self.lang))
         if a.get("overdue_hidden"):
             box.mount(
                 Static(

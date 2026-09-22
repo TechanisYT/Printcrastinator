@@ -13,6 +13,7 @@ from ..receipt.model import (
     Rule,
     SectionHeader,
     Spacer,
+    SubHeader,
     TearLine,
     Text,
 )
@@ -39,6 +40,8 @@ def render(receipt: Receipt, console: Console | None = None) -> None:
                 if h:
                     line.append(f"  {h}", style="dim")
                 console.print(line)
+            case SubHeader(text=t):
+                console.print(RText(f"  {t}", style="dim bold"))
             case EventLine(time=t, title=title):
                 console.print(RText.assemble((f"{t:<12}", "cyan"), title))
             case CheckItem(title=t, right=r, meta=m):
