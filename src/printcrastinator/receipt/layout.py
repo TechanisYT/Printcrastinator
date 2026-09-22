@@ -170,6 +170,26 @@ def _events(r: Receipt, agenda: DailyAgenda, lang: str) -> None:
     r.add(Spacer(18))
 
 
+def _birthdays(r: Receipt, agenda: DailyAgenda, lang: str) -> None:
+    if not agenda.birthdays:
+        return
+    r.add(SectionHeader(i18n.label(lang, "birthdays"), hint=str(len(agenda.birthdays))))
+    for b in agenda.birthdays:
+        delta = (b.day - agenda.day).days
+        when = (
+            i18n.label(lang, "today_word") if delta == 0 else i18n.label(lang, "in_days", n=delta)
+        )
+        meta_parts = (
+            []
+            if delta == 0
+            else [f"{i18n.weekday_name(lang, b.day)[:2]} {b.day.strftime('%d.%m.')}"]
+        )
+        if b.age:
+            meta_parts.append(i18n.label(lang, "turns", n=b.age))
+        r.add(EventLine(when, b.name, meta=" · ".join(meta_parts)))
+    r.add(Spacer(18))
+
+
 def _due_label(agenda: DailyAgenda, lang: str) -> str:
     if agenda.day == date.today():
         return i18n.label(lang, "due_today")
@@ -205,6 +225,7 @@ def daily_receipt(
     r = Receipt()
     _header(r, agenda.day, lang, opt)
     _events(r, agenda, lang)
+    _birthdays(r, agenda, lang)
     if not agenda.has_tasks:
         r.add(Text(i18n.label(lang, "no_tasks"), "body", "center"), Spacer(8))
         _footer(r, agenda, lang, opt)
@@ -238,6 +259,7 @@ def cards_receipt(agenda: DailyAgenda, lang: str = "en", opt: Options | None = N
     r = Receipt()
     _header(r, agenda.day, lang, opt)
     _events(r, agenda, lang)
+    _birthdays(r, agenda, lang)
     if not agenda.has_tasks:
         r.add(Text(i18n.label(lang, "no_tasks"), "body", "center"), Spacer(8))
         _footer(r, agenda, lang, opt)
@@ -438,9 +460,15 @@ def sample_agenda(day: date | None = None) -> DailyAgenda:
     ) -> TaskItem:
         return TaskItem(uid, src, title, due, ln.lower(), ln, **kw)  # type: ignore[arg-type]
 
+    from ..models import Birthday
+
     return DailyAgenda(
         day=day,
         events=ev,
+        birthdays=[
+            Birthday("Anna Example", day, 30),
+            Birthday("Bob", day + timedelta(days=3), None),
+        ],
         overdue=[
             t(
                 "o1",

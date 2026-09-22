@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import re
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
 from icalendar import Calendar as ICal
 
-from ..models import CalendarEvent, TaskItem
+from ..models import Birthday, CalendarEvent, TaskItem
 
 
 def _local_tz():
@@ -181,3 +182,26 @@ def parse_deck_cards(
                 )
             )
     return items
+
+
+_BDAY_RE = re.compile(r"^\W*(?P<name>.*?)\s*(?:\((?:\*)?(?P<year>\d{4})\))?\s*$")
+
+
+def parse_birthdays(ics: str, day_from: date, day_to: date) -> list[Birthday]:
+    """Birthday occurrences (expanded VEVENTs of Nextcloud's contact birthday calendar) whose
+    date lies within [day_from, day_to]. Nextcloud titles look like '🎂 Anna (1990)'."""
+    out: list[Birthday] = []
+    cal = ICal.from_ical(ics)
+    for comp in cal.walk("VEVENT"):
+        dtstart = comp.get("DTSTART")
+        if dtstart is None:
+            continue
+        d = dtstart.dt.date() if isinstance(dtstart.dt, datetime) else dtstart.dt
+        if not (day_from <= d <= day_to):
+            continue
+        m = _BDAY_RE.match(str(comp.get("SUMMARY", "")))
+        name = (m.group("name") if m else str(comp.get("SUMMARY", ""))).strip() or "(unknown)"
+        year = int(m.group("year")) if m and m.group("year") else None
+        age = d.year - year if year else None
+        out.append(Birthday(name=name, day=d, age=age, uid=f"{comp.get('UID', '')}@{d}"))
+    return out

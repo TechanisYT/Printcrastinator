@@ -224,6 +224,32 @@ class TaskView(App):
             )
         )
 
+        # BIRTHDAYS
+        if a.get("birthdays"):
+            kids = []
+            for b in a["birthdays"]:
+                delta = (date.fromisoformat(b["day"]) - today).days
+                when = (
+                    i18n.label(self.lang, "today_word")
+                    if delta == 0
+                    else f"{i18n.label(self.lang, 'in_days', n=delta)} · {b['day'][8:10]}.{b['day'][5:7]}."
+                )
+                age = (
+                    f"  [dim]{i18n.label(self.lang, 'turns', n=b['age'])}[/dim]"
+                    if b.get("age")
+                    else ""
+                )
+                style = "[b]" if delta == 0 else ""
+                kids.append(
+                    Static(
+                        f"[magenta]{when:<14}[/magenta] {style}🎂 {b['name']}{'[/b]' if style else ''}{age}",
+                        classes="event",
+                    )
+                )
+            groups.append(
+                self._group(i18n.label(self.lang, "birthdays"), len(a["birthdays"]), kids)
+            )
+
         # OVERDUE
         if a["overdue"]:
             kids = self._list_rows(a["overdue"], today)

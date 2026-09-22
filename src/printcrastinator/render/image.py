@@ -271,9 +271,9 @@ def _timeline(c: _Canvas, b: Timeline) -> None:
     lh_small = _line_height("small")
     label_w = text_width("00:00", "small") + 6
     bar_x = MARGIN + label_w
-    first = min(e.start_min for e, _ in placed) // 60
-    last = -(-max(e.end_min for e, _ in placed) // 60)
-    height = max(1, last - first) * px_per_hour
+    first = min(e.start_min for e, _ in placed) // 60  # full hour before the first event
+    end_min = max(e.end_min for e, _ in placed)  # bar ends exactly with the last event
+    height = max(lh_small + 8, int((end_min - first * 60) * px_per_hour / 60))
     ncols = max(col for _, col in placed) + 1
     area_x = bar_x + 6
     gap = 4
@@ -285,10 +285,12 @@ def _timeline(c: _Canvas, b: Timeline) -> None:
         return top + int((minutes - first * 60) * px_per_hour / 60)
 
     c.draw.rectangle((bar_x, top, bar_x + 1, top + height), fill=0)
-    for h in range(first, last + 1):
-        y = y_of(h * 60)
+    ticks = [h * 60 for h in range(first, end_min // 60 + 1) if h * 60 <= end_min - 40]
+    ticks.append(end_min)
+    for m in ticks:
+        y = y_of(m)
         c.draw.rectangle((bar_x - 4, y, bar_x + 1, y), fill=0)
-        c.draw.text((MARGIN, y - lh_small // 2), f"{h:02d}:00", font=font("small"), fill=0)
+        c.draw.text((MARGIN, y - lh_small // 2), _hhmm(m), font=font("small"), fill=0)
 
     def overlaps(a: TimelineEvent, b: TimelineEvent) -> bool:
         return a.start_min < b.end_min and b.start_min < a.end_min
@@ -402,13 +404,11 @@ def multi_day_calendar(days: list[tuple[str, list[TimelineEvent], list[str]]]) -
     W = MARGIN + axis_w + len(days) * (day_w + gap) + MARGIN
     timed_all = [e for _, evs, _ in days for e in evs]
     first = min((e.start_min // 60 for e in timed_all), default=8)
-    last = max((-(-e.end_min // 60) for e in timed_all), default=18)
-    if last - first < 6:
-        last = min(24, first + 6)
-    hours = last - first
+    end_min = max((e.end_min for e in timed_all), default=18 * 60)
+    span_min = max(60, end_min - first * 60)
     top = 8 + header_h + allday_h
     grid_h = H - top - 10
-    px_per_hour = grid_h / hours
+    px_per_hour = grid_h / (span_min / 60)
 
     img = Image.new("L", (W, H), 255)
     d = ImageDraw.Draw(img)
@@ -419,10 +419,12 @@ def multi_day_calendar(days: list[tuple[str, list[TimelineEvent], list[str]]]) -
 
     axis_x = MARGIN + axis_w
     # hour grid lines + labels
-    for h in range(first, last + 1):
-        y = y_of(h * 60)
-        d.line((axis_x, y, W - MARGIN, y), fill=0 if h in (first, last) else 160, width=1)
-        d.text((MARGIN, y - lh_tiny // 2), f"{h:02d}:00", font=font("tiny"), fill=0)
+    ticks = [h * 60 for h in range(first, end_min // 60 + 1) if h * 60 <= end_min - 40]
+    ticks.append(end_min)
+    for m in ticks:
+        y = y_of(m)
+        d.line((axis_x, y, W - MARGIN, y), fill=0 if m in (first * 60, end_min) else 160)
+        d.text((MARGIN, y - lh_tiny // 2), _hhmm(m), font=font("tiny"), fill=0)
     for i, (label, evs, allday) in enumerate(days):
         x0 = axis_x + i * (day_w + gap)
         x1 = x0 + day_w

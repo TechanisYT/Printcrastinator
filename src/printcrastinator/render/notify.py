@@ -22,6 +22,12 @@ def summary_lines(agenda: DailyAgenda, lang: str = "en") -> tuple[str, str]:
             parts.append(f"{len(agenda.always_items)} {i18n.label(lang, 'summary_always')}")
         title = " · ".join(parts)
     body = []
+    for b in agenda.birthdays:
+        delta = (b.day - agenda.day).days
+        if delta == 0:
+            body.append(f"🎂 {b.name}" + (f" ({b.age})" if b.age else ""))
+        elif delta <= 3:
+            body.append(f"🎂 {b.name} {i18n.label(lang, 'in_days', n=delta)}")
     for ev in agenda.events[:4]:
         t = i18n.label(lang, "all_day") if ev.all_day else ev.start.strftime("%H:%M")
         body.append(f"{t}  {ev.title}")

@@ -67,6 +67,17 @@ class CalendarEvent:
         return d
 
 
+@dataclass(frozen=True)
+class Birthday:
+    name: str
+    day: date
+    age: int | None = None  # turns this age, if the birth year is known
+    uid: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"name": self.name, "day": self.day.isoformat(), "age": self.age, "uid": self.uid}
+
+
 @dataclass
 class TaskGroup:
     """A named group of tasks on the receipt, e.g. 'Projects · Backlog'."""
@@ -84,6 +95,7 @@ class DailyAgenda:
     always: list[TaskGroup] = field(default_factory=list)
     # overdue tasks left off by the overdue filters (still open in Nextcloud)
     overdue_hidden: int = 0
+    birthdays: list[Birthday] = field(default_factory=list)  # today and upcoming
 
     @property
     def always_items(self) -> list[TaskItem]:
@@ -111,6 +123,7 @@ class DailyAgenda:
                 {"title": g.title, "items": [t.to_dict() for t in g.items]} for g in self.always
             ],
             "overdue_hidden": self.overdue_hidden,
+            "birthdays": [b.to_dict() for b in self.birthdays],
             "has_tasks": self.has_tasks,
             "has_events": self.has_events,
         }

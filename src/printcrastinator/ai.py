@@ -297,6 +297,12 @@ def agenda_context(
             when = "all day" if e.all_day else f"{e.start:%H:%M}-{e.end:%H:%M}"
             who = ", ".join(e.attendees) if e.attendees else "-"
             lines.append(f"- {e.uid} | {when} | {e.title} | {e.location or '-'} | {who}")
+    if agenda.birthdays:
+        lines.append("Birthdays (from the contacts birthday calendar):")
+        for b in agenda.birthdays:
+            delta = (b.day - today).days
+            when = "today" if delta == 0 else f"in {delta} days ({b.day.isoformat()})"
+            lines.append(f"- {b.name} {when}" + (f", turns {b.age}" if b.age else ""))
     lines.append("Open tasks (uid | title | list | due | notes):")
     for t in agenda.all_tasks:
         due = t.due.isoformat() if t.due else "-"

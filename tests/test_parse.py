@@ -72,3 +72,13 @@ def test_event_window_is_padded_around_day(monkeypatch):
     assert captured["start"].date() == date(2026, 9, 21)
     assert captured["end"].date() == date(2026, 9, 24)
     assert captured["expand"] is True
+
+
+def test_birthdays_parsed_with_age_and_range():
+    from printcrastinator.sources.parse import parse_birthdays
+
+    bd = parse_birthdays((FX / "birthdays.ics").read_text(), date(2026, 9, 22), date(2026, 10, 6))
+    assert [(b.name, b.day.isoformat(), b.age) for b in bd] == [
+        ("Anna Example", "2026-09-22", 30),
+        ("Bob", "2026-09-25", None),
+    ]

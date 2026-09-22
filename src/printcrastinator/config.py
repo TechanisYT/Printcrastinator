@@ -106,6 +106,10 @@ class DailyConfig:
     # Print task notes/description and tags under the title.
     show_notes: bool = True
     notes_max_lines: int = 3
+    # Birthdays from Nextcloud's auto-generated contact birthday calendar.
+    show_birthdays: bool = True
+    birthdays_calendar: str = "contact_birthdays"
+    birthdays_lookahead: int = 14
     # Group tasks by task list / Deck stack instead of overdue / due today sections.
     group_by_list: bool = True
     # In the flat layout, show the list or board name next to each task.

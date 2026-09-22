@@ -15,7 +15,7 @@ from . import agenda as agenda_mod
 from . import logos
 from .config import Config, load_config
 from .db import Database
-from .models import CalendarEvent, DailyAgenda, TaskGroup, TaskItem
+from .models import Birthday, CalendarEvent, DailyAgenda, TaskGroup, TaskItem
 from .printer.escpos_out import Printer, PrinterError
 from .receipt import i18n, layout
 from .render import image as render_image
@@ -50,6 +50,7 @@ class SourceState:
     events: list[CalendarEvent] = field(default_factory=list)
     collections: list[Collection] = field(default_factory=list)
     stacks: list[DeckStack] = field(default_factory=list)
+    birthdays: list[Birthday] = field(default_factory=list)
     last_ok: float = 0.0
     last_error: str = ""
     errors: dict[str, str] = field(default_factory=dict)
@@ -84,6 +85,7 @@ class Daemon:
             "events": [e.to_dict() for e in self.state.events],
             "collections": [c.__dict__ for c in self.state.collections],
             "stacks": [st.__dict__ for st in self.state.stacks],
+            "birthdays": [b.to_dict() for b in self.state.birthdays],
             "at": time.time(),
         }
         self.db.kv_set("snapshot", json.dumps(payload))
@@ -101,6 +103,10 @@ class Daemon:
             self.state.events = [_event_from_dict(x) for x in d["events"]]
             self.state.collections = [Collection(**c) for c in d["collections"]]
             self.state.stacks = [DeckStack(**st) for st in d["stacks"]]
+            self.state.birthdays = [
+                Birthday(b["name"], date.fromisoformat(b["day"]), b.get("age"), b.get("uid", ""))
+                for b in d.get("birthdays", [])
+            ]
             self.state.last_ok = float(d.get("at", 0))
             self.state.last_error = "using data from last successful fetch"
             log.info("restored snapshot from %s", time.ctime(self.state.last_ok))
@@ -177,7 +183,16 @@ class Daemon:
             r_t: Any = _retry(lambda: cal.fetch_tasks(today))
             r_e: Any = _retry(lambda: cal.fetch_events(today, disabled))
             r_x = fetch_extra(self.cfg.extra_calendars, nc, today, disabled, self.db)
-            return r_t, r_e, r_x
+            r_b: Any = []
+            if self.cfg.daily.show_birthdays:
+                r_b = _retry(
+                    lambda: cal.fetch_birthdays(
+                        self.cfg.daily.birthdays_calendar,
+                        today,
+                        today + timedelta(days=self.cfg.daily.birthdays_lookahead),
+                    )
+                )
+            return r_t, r_e, r_x, r_b
 
         results = await asyncio.gather(
             asyncio.to_thread(caldav_both), deck.fetch(), return_exceptions=True
@@ -186,10 +201,15 @@ class Daemon:
         errors: dict[str, str] = {}
         r_both, r_deck = results
         r_extra: Any = None
+        r_bdays: Any = []
         if isinstance(r_both, BaseException):
             r_tasks = r_events = r_both
         else:
-            r_tasks, r_events, r_extra = r_both
+            r_tasks, r_events, r_extra, r_bdays = r_both
+        if isinstance(r_bdays, BaseException):
+            errors["birthdays"] = str(r_bdays)
+        else:
+            self.state.birthdays = list(r_bdays)
         if isinstance(r_tasks, BaseException):
             ok, errors["tasks"] = False, str(r_tasks)
             log.warning("tasks fetch failed: %s", r_tasks)
@@ -200,7 +220,10 @@ class Daemon:
             ok, errors["events"] = False, str(r_events)
             log.warning("events fetch failed: %s", r_events)
         else:
-            cols, self.state.events = r_events
+            cols, evs = r_events
+            if self.cfg.daily.show_birthdays:  # birthdays get their own section
+                evs = [e for e in evs if e.calendar_id != self.cfg.daily.birthdays_calendar]
+            self.state.events = evs
             self._merge_collections(cols)
         if r_extra is not None:
             x_cols, x_events, x_errors = r_extra
@@ -230,7 +253,7 @@ class Daemon:
 
     def build_agenda(self, day: date | None = None) -> DailyAgenda:
         day = day or date.today()
-        return agenda_mod.build(
+        ag = agenda_mod.build(
             day,
             self.state.tasks,
             self.state.cards,
@@ -241,6 +264,8 @@ class Daemon:
             overdue_max_days=self.cfg.daily.overdue_max_days,
             overdue_max_count=self.cfg.daily.overdue_max_count,
         )
+        ag.birthdays = list(self.state.birthdays)
+        return ag
 
     async def agenda(self, refresh: bool = False) -> DailyAgenda:
         if refresh or (self.last_poll_at == 0 and self.cfg.nextcloud.configured):
@@ -259,6 +284,8 @@ class Daemon:
         def fetch():
             cal = CalDavClient(nc, self.db)
             _cols, evs = cal.fetch_events(day, disabled)
+            if self.cfg.daily.show_birthdays:
+                evs = [e for e in evs if e.calendar_id != self.cfg.daily.birthdays_calendar]
             _xc, xevs, _xe = fetch_extra(self.cfg.extra_calendars, nc, day, disabled, self.db)
             return evs + xevs
 

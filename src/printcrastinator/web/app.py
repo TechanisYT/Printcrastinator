@@ -637,6 +637,12 @@ def sec_settings(daemon: Daemon, dark: ui.dark_mode) -> None:
             "Flat layout: show list or board name under each task", value=cfg.daily.show_list
         )
         notes_sw = ui.switch("Print notes, descriptions and tags", value=cfg.daily.show_notes)
+        bday_sw = ui.switch(
+            "Birthdays from the contacts birthday calendar", value=cfg.daily.show_birthdays
+        )
+        bday_days = ui.number(
+            "Birthday lookahead (days)", value=cfg.daily.birthdays_lookahead, min=0, max=90
+        )
         notes_lines = ui.number(
             "Max note lines (0 = all)", value=cfg.daily.notes_max_lines, min=0, max=50
         )
@@ -813,6 +819,8 @@ def sec_settings(daemon: Daemon, dark: ui.dark_mode) -> None:
             quote=bool(quote_sw.value),
             quote_position=quote_pos.value,
             show_notes=bool(notes_sw.value),
+            show_birthdays=bool(bday_sw.value),
+            birthdays_lookahead=int(bday_days.value),
             notes_max_lines=int(notes_lines.value),
             group_by_list=bool(group_sw.value),
             show_list=bool(showlist_sw.value),

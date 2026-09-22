@@ -175,6 +175,32 @@ class CalDavClient:
                 events.extend(parse_vevent_components(ics, col.id, col.name, day))
         return cols, events
 
+    def fetch_birthdays(self, calendar_id: str, day_from: date, day_to: date) -> list:
+        """Occurrences of the birthday calendar in the range (expanded server-side)."""
+        from .parse import parse_birthdays
+
+        col = next((c for c in self.collections() if c.id == calendar_id and c.vevent), None)
+        if col is None:
+            return []
+        tz = datetime.now().astimezone().tzinfo
+        start = datetime.combine(day_from - timedelta(days=1), datetime.min.time(), tz)
+        end = datetime.combine(day_to + timedelta(days=2), datetime.min.time(), tz)
+        key = f"bdays:{col.id}:{day_from}:{day_to}"
+        ctag = self.ctag(col)
+        cached = self._cached(key, ctag)
+        if cached is None:
+            found = self._calendar(col).search(start=start, end=end, event=True, expand=True)
+            cached = [e.data for e in found]
+            self._store(key, ctag, cached)
+        out = []
+        seen: set[str] = set()
+        for ics in cached:
+            for b in parse_birthdays(ics, day_from, day_to):
+                if b.uid not in seen:
+                    seen.add(b.uid)
+                    out.append(b)
+        return sorted(out, key=lambda b: (b.day, b.name.lower()))
+
     def test_connection(self) -> str:
         cols = self.collections()
         return f"OK: {len(cols)} calendars/lists found"

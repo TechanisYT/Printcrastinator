@@ -30,6 +30,9 @@ LABELS: dict[str, dict[str, str]] = {
         "pinned": "DECKS & LISTS",
         "more_events": "also:",
         "with": "with",
+        "birthdays": "BIRTHDAYS",
+        "in_days": "in {n} d",
+        "turns": "turns {n}",
     },
     "de": {
         "today": "HEUTE",
@@ -56,6 +59,9 @@ LABELS: dict[str, dict[str, str]] = {
         "pinned": "DECKS & LISTEN",
         "more_events": "außerdem:",
         "with": "mit",
+        "birthdays": "GEBURTSTAGE",
+        "in_days": "in {n} T",
+        "turns": "wird {n}",
     },
 }
 

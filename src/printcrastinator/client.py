@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 
 from .config import Config
-from .models import CalendarEvent, DailyAgenda, TaskGroup, TaskItem
+from .models import Birthday, CalendarEvent, DailyAgenda, TaskGroup, TaskItem
 
 log = logging.getLogger(__name__)
 
@@ -119,6 +119,10 @@ def agenda_from_dict(d: dict[str, Any]) -> DailyAgenda:
         overdue=[task(t) for t in d["overdue"]],
         due_today=[task(t) for t in d["due_today"]],
         always=[TaskGroup(g["title"], [task(t) for t in g["items"]]) for g in d["always"]],
+        birthdays=[
+            Birthday(b["name"], date.fromisoformat(b["day"]), b.get("age"), b.get("uid", ""))
+            for b in d.get("birthdays", [])
+        ],
     )
 
 
