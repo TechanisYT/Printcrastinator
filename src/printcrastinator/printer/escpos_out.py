@@ -114,12 +114,18 @@ class Printer:
         if img.width != self.cfg.width_px:
             img = img.resize((self.cfg.width_px, int(img.height * self.cfg.width_px / img.width)))
         band = max(8, self.cfg.band_lines)
-        delay = band / max(1, self.cfg.lines_per_second)
+        band_time = band / max(1, self.cfg.lines_per_second)
         for y in range(0, img.height, band):
             part = img.crop((0, y, img.width, min(y + band, img.height)))
+            t0 = time.monotonic()
             p.image(part, impl="bitImageRaster", fragment_height=band, center=False)
             p.flush()
-            time.sleep(delay)
+            # The write blocks while the printer's buffer is full, i.e. the printer itself
+            # sets the pace. Only sleep for whatever part of the band time the write did not
+            # already take, so the head never runs dry between bands.
+            remaining = band_time - (time.monotonic() - t0)
+            if remaining > 0:
+                time.sleep(remaining)
 
     def _finish(self, p: File) -> None:
         self._feed_mm(p, self.cfg.feed_after_mm)
