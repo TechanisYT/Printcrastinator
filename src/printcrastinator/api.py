@@ -263,6 +263,8 @@ def make_router(daemon: Daemon) -> APIRouter:
     async def print_selection(body: Selection):
         try:
             return await daemon.print_selection(body.title, **_selection_filters(body))
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
         except PrinterError as exc:
             raise HTTPException(503, str(exc)) from exc
 

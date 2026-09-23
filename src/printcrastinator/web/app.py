@@ -95,16 +95,9 @@ def sec_dashboard(daemon: Daemon) -> None:
                     "Print today now",
                     icon="print",
                     on_click=lambda: _run(
-                        daemon.maybe_print_daily(force=False, reason="ui"), "daily"
+                        daemon.maybe_print_daily(force=True, reason="ui"), "daily"
                     ),
-                )
-                ui.button(
-                    "Reprint (force)",
-                    icon="replay",
-                    on_click=lambda: _run(
-                        daemon.maybe_print_daily(force=True, reason="ui-force"), "daily"
-                    ),
-                ).props("outline")
+                ).tooltip("Prints regardless of whether today was already printed")
                 ui.button(
                     "Print as cards",
                     icon="content_cut",
@@ -367,7 +360,8 @@ def sec_deck(daemon: Daemon) -> None:
     ui.label("Deck stacks").classes("text-lg font-bold")
     ui.label(
         "Switch on 'always print' for stacks whose cards should be on every receipt regardless "
-        "of due date. Drag a stack by its handle to change the order (used on the receipt, "
+        "of due date. Drag a stack by its handle; the others move aside as you drag. The order "
+        "is used on the receipt, "
         "in the terminal view and in the lists here); by default it is Nextcloud's order. A "
         "custom order is kept across refreshes from Nextcloud until you reset it."
     ).classes("text-sm opacity-70")
@@ -379,17 +373,19 @@ def sec_deck(daemon: Daemon) -> None:
         ui.label("No boards loaded yet. Refresh from the dashboard.").classes("opacity-70")
     container = ui.column().classes("w-full gap-2")
 
-    drag: dict[str, int | None] = {"board": None, "stack": None}
-
-    def reorder(board_id: int, moved: int, target: int) -> None:
-        ids = [st.stack_id for st in boards[board_id]]
-        if moved == target or moved not in ids or target not in ids:
-            return
-        ids.remove(moved)
-        ids.insert(ids.index(target), moved)
+    def apply_order(board_id: int, ids: list[int]) -> None:
         daemon.db.set_stack_order(board_id, ids)
         boards[board_id] = sorted(boards[board_id], key=lambda st: ids.index(st.stack_id))
         render()
+
+    def on_reorder(e) -> None:
+        args = e.args if isinstance(e.args, dict) else {}
+        try:
+            apply_order(int(args["board"]), [int(x) for x in args["ids"]])
+        except (KeyError, ValueError, TypeError):
+            pass
+
+    ui.on("stack_reorder", on_reorder)
 
     def reset(board_id: int) -> None:
         daemon.db.clear_stack_order(board_id)
@@ -410,33 +406,39 @@ def sec_deck(daemon: Daemon) -> None:
                                 icon="restart_alt",
                                 on_click=lambda b=board_id: reset(b),
                             ).props("flat dense")
-                    for st in stacks:
-                        row = (
-                            ui.row()
-                            .classes("w-full items-center rounded px-1 cursor-grab")
-                            .props("draggable")
-                        )
-
-                        def on_start(st=st):
-                            drag["board"], drag["stack"] = st.board_id, st.stack_id
-
-                        def on_drop(st=st):
-                            if drag["board"] == st.board_id and drag["stack"] is not None:
-                                reorder(st.board_id, drag["stack"], st.stack_id)
-                            drag["board"] = drag["stack"] = None
-
-                        row.on("dragstart", on_start)
-                        row.on("dragover.prevent", lambda: None)
-                        row.on("drop.prevent", on_drop)
-                        with row:
-                            ui.icon("drag_indicator").classes("opacity-60")
-                            ui.switch(
-                                st.stack_title,
-                                value=(st.board_id, st.stack_id) in always,
-                                on_change=lambda e, st=st: daemon.db.set_stack_rule(
-                                    st.board_id, st.stack_id, bool(e.value)
-                                ),
-                            )
+                    lst = ui.column().classes("w-full gap-0")
+                    with lst:
+                        for st in stacks:
+                            with (
+                                ui.row()
+                                .classes("w-full items-center rounded px-1 stack-row")
+                                .props(f"data-stack={st.stack_id}")
+                            ):
+                                ui.icon("drag_indicator").classes(
+                                    "opacity-60 cursor-grab drag-handle text-xl"
+                                )
+                                ui.switch(
+                                    st.stack_title,
+                                    value=(st.board_id, st.stack_id) in always,
+                                    on_change=lambda e, st=st: daemon.db.set_stack_rule(
+                                        st.board_id, st.stack_id, bool(e.value)
+                                    ),
+                                )
+                    ui.run_javascript(
+                        f"""
+                        const el = document.getElementById('c{lst.id}');
+                        if (el && window.Sortable) {{
+                          new Sortable(el, {{
+                            handle: '.drag-handle', animation: 150, ghostClass: 'bg-primary',
+                            onEnd: () => emitEvent('stack_reorder', {{
+                              board: {board_id},
+                              ids: Array.from(el.querySelectorAll('.stack-row'))
+                                        .map(r => r.dataset.stack),
+                            }}),
+                          }});
+                        }}
+                        """
+                    )
 
     render()
 
@@ -1094,6 +1096,10 @@ def build(daemon: Daemon) -> None:
 
     @ui.page("/")
     def index():
+        # SortableJS for drag-and-drop ordering on the Deck page
+        ui.add_head_html(
+            '<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>'
+        )
         dark = ui.dark_mode(daemon.cfg.ui.dark)
         ui.colors(primary="#d97706")
         builders: dict[str, Callable[[], None]] = {

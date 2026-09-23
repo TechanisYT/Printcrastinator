@@ -438,6 +438,15 @@ class Daemon:
         return [groups[k] for k in sorted(groups, key=str.lower)]
 
     async def print_selection(self, title: str, **filters: Any) -> dict[str, Any]:
+        if not any(
+            v not in (None, "", [], False, True)
+            for k, v in filters.items()
+            if k != "include_no_due"
+        ) and not filters.get("overdue_only"):
+            raise ValueError(
+                "refusing to print without a filter (that would be every open task); "
+                "give list_ids, a due range, overdue_only, tags or text"
+            )
         items = self.select_tasks(**filters)
         groups = self.group_by_list(items)
         img = render_image.render(

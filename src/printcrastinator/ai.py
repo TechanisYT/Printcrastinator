@@ -470,6 +470,12 @@ GUIDELINES = (
     "- Attendees need an e-mail address ('Name <mail>'). If the user only gives a name and no "
     "address is known, ask for the address instead of guessing one.\n"
     "- To change attendance, pass the complete new attendee list to edit_event.\n"
+    "- print_tasks ALWAYS needs a filter. 'all decks/stacks named X' -> list_ids=['X'] (a "
+    "name matches every stack with that name across boards). Never call print_tasks with "
+    "only a title; that would print every open task.\n"
+    "- Events: the title is only the activity ('eating pizza', 'bookstores'); place names go "
+    "into location ('Pizzaiolo, Graz', 'Thalia and Morawa, Graz'), never into the title. "
+    "Times never go into the title either.\n"
     "- 'print (the) tasks for/of/from <name>': print_tasks with list_ids=['<name>'] and NO other "
     "filter. Names are accepted: a task list name, a Deck board name (all its stacks) or "
     "'Board · Stack'. If a task list and a board share the name, both are included.\n"
@@ -732,7 +738,10 @@ class Assistant:
                     if len(items) > len(rows):
                         note += f"; only the first {len(rows)} are listed here"
                     return json.dumps({"count": len(items), "note": note, "tasks": rows})
-                return json.dumps(await d.print_selection(args.get("title") or "Tasks", **f))
+                try:
+                    return json.dumps(await d.print_selection(args.get("title") or "Tasks", **f))
+                except ValueError as exc:
+                    return f"error: {exc}"
             if name == "printer_action":
                 act = args.get("action", "")
                 if act == "test_print":

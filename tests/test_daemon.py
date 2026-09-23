@@ -107,3 +107,14 @@ async def test_suppressed_task_is_not_printed(tmp_path):
     d.db.suppress("a", DAY.isoformat(), "Hidden")
     r = await d.maybe_print_daily()
     assert r["reason"] == "no tasks"
+
+
+async def test_print_selection_refuses_without_filter(tmp_path):
+    import pytest
+
+    d = make(tmp_path, [t("a", "Do it")])
+    with pytest.raises(ValueError):
+        await d.print_selection("Everything")
+    assert d.printer.images == []
+    r = await d.print_selection("Personal", list_ids=["personal"])
+    assert r["printed"] and len(d.printer.images) == 1
