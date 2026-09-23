@@ -546,6 +546,7 @@ class Daemon:
         if not self.seeded:
             self.db.mark_seen(keys + event_keys)
             self.seeded = True
+            self._events_day = date.today()
             log.info("seeded %d seen items, no slips for existing tasks", len(keys))
             return
         today = date.today()
