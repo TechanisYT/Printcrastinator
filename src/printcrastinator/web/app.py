@@ -367,9 +367,9 @@ def sec_deck(daemon: Daemon) -> None:
     ui.label("Deck stacks").classes("text-lg font-bold")
     ui.label(
         "Switch on 'always print' for stacks whose cards should be on every receipt regardless "
-        "of due date. The arrows change the order of the stacks (on the receipt, in the "
-        "terminal view and in the lists here); by default it is Nextcloud's order. A custom "
-        "order is kept across refreshes from Nextcloud until you reset it."
+        "of due date. Drag a stack by its handle to change the order (used on the receipt, "
+        "in the terminal view and in the lists here); by default it is Nextcloud's order. A "
+        "custom order is kept across refreshes from Nextcloud until you reset it."
     ).classes("text-sm opacity-70")
     always = daemon.db.always_print_stacks()
     boards: dict[int, list] = {}
@@ -379,15 +379,17 @@ def sec_deck(daemon: Daemon) -> None:
         ui.label("No boards loaded yet. Refresh from the dashboard.").classes("opacity-70")
     container = ui.column().classes("w-full gap-2")
 
-    def move(board_id: int, stack_id: int, delta: int) -> None:
+    drag: dict[str, int | None] = {"board": None, "stack": None}
+
+    def reorder(board_id: int, moved: int, target: int) -> None:
         ids = [st.stack_id for st in boards[board_id]]
-        i = ids.index(stack_id)
-        j = i + delta
-        if 0 <= j < len(ids):
-            ids[i], ids[j] = ids[j], ids[i]
-            daemon.db.set_stack_order(board_id, ids)
-            boards[board_id] = sorted(boards[board_id], key=lambda st: ids.index(st.stack_id))
-            render()
+        if moved == target or moved not in ids or target not in ids:
+            return
+        ids.remove(moved)
+        ids.insert(ids.index(target), moved)
+        daemon.db.set_stack_order(board_id, ids)
+        boards[board_id] = sorted(boards[board_id], key=lambda st: ids.index(st.stack_id))
+        render()
 
     def reset(board_id: int) -> None:
         daemon.db.clear_stack_order(board_id)
@@ -408,16 +410,26 @@ def sec_deck(daemon: Daemon) -> None:
                                 icon="restart_alt",
                                 on_click=lambda b=board_id: reset(b),
                             ).props("flat dense")
-                    for idx, st in enumerate(stacks):
-                        with ui.row().classes("w-full items-center"):
-                            ui.button(
-                                icon="arrow_upward",
-                                on_click=lambda st=st: move(st.board_id, st.stack_id, -1),
-                            ).props("flat dense").set_enabled(idx > 0)
-                            ui.button(
-                                icon="arrow_downward",
-                                on_click=lambda st=st: move(st.board_id, st.stack_id, 1),
-                            ).props("flat dense").set_enabled(idx < len(stacks) - 1)
+                    for st in stacks:
+                        row = (
+                            ui.row()
+                            .classes("w-full items-center rounded px-1 cursor-grab")
+                            .props("draggable")
+                        )
+
+                        def on_start(st=st):
+                            drag["board"], drag["stack"] = st.board_id, st.stack_id
+
+                        def on_drop(st=st):
+                            if drag["board"] == st.board_id and drag["stack"] is not None:
+                                reorder(st.board_id, drag["stack"], st.stack_id)
+                            drag["board"] = drag["stack"] = None
+
+                        row.on("dragstart", on_start)
+                        row.on("dragover.prevent", lambda: None)
+                        row.on("drop.prevent", on_drop)
+                        with row:
+                            ui.icon("drag_indicator").classes("opacity-60")
                             ui.switch(
                                 st.stack_title,
                                 value=(st.board_id, st.stack_id) in always,
