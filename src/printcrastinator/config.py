@@ -88,7 +88,9 @@ class PrinterConfig:
     # blocks; flooding without any pacing crashes the printer's USB link.
     band_lines: int = 128
     lines_per_second: int = 550
-    lead_lines: int = 128
+    # Extra lines sent before the pacing starts. Keep at 0: a burst of two bands at the
+    # start crashed the printer's USB link once.
+    lead_lines: int = 0
     # Paper feed after the last printed line so the tear line reaches the tear bar.
     feed_after_mm: int = 10
     # Heating density chosen with test-print. None = printer default.
