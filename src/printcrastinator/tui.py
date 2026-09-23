@@ -155,6 +155,8 @@ class TaskView(App):
         elif self.cfg.ui.tui_focus_ai:
             inp.focus()
         self.load_agenda(summary=True)
+        # follow the daemon: it polls Nextcloud every few minutes; redraw when data changed
+        self.set_interval(20, self.check_updates)
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
         """Shortcuts other than quit/escape are only active when enabled in settings."""
@@ -206,6 +208,23 @@ class TaskView(App):
         g = Vertical(*children, classes=f"group {extra_class}".strip())
         g.border_title = f"{title}  {count}"
         return g
+
+    @work(exclusive=True, group="agenda")
+    async def check_updates(self) -> None:
+        """Reload the agenda if the daemon's data changed since the last draw."""
+        try:
+            async with self._client() as c:
+                r = await c.get("/api/agenda")
+                r.raise_for_status()
+                fresh = r.json()
+                st = (await c.get("/api/status")).json()
+        except Exception:
+            return
+        if fresh != self.agenda:
+            self.agenda = fresh
+            self.status_error = st.get("last_error", "")
+            self.render_agenda()
+            self.notify("updated from Nextcloud", timeout=2)
 
     def render_agenda(self) -> None:
         a = self.agenda
