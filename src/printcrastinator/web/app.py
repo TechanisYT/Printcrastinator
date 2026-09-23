@@ -65,17 +65,20 @@ def sec_dashboard(daemon: Daemon) -> None:
             ui.label("Today's receipt").classes("text-lg font-bold")
             # The receipt can be very long, so it lives in a scrollable dialog, not inline.
             with ui.dialog() as preview_dialog, ui.card().classes("items-center"):
+                spinner = ui.spinner(size="lg")
                 img = (
                     ui.image()
                     .classes("w-[340px] border shadow bg-white")
                     .style("image-rendering: pixelated")
                 )
+                img.on("load", lambda: spinner.set_visibility(False))
                 ui.button("Close", on_click=preview_dialog.close).props("flat")
 
             class _Preview:
                 """`img.set_source(url)` also opens the dialog (used by all preview buttons)."""
 
                 def set_source(self, url: str) -> None:
+                    spinner.set_visibility(True)
                     img.set_source(url)
                     preview_dialog.open()
 
@@ -369,7 +372,6 @@ def sec_deck(daemon: Daemon) -> None:
         "order is kept across refreshes from Nextcloud until you reset it."
     ).classes("text-sm opacity-70")
     always = daemon.db.always_print_stacks()
-    custom = daemon.db.stack_positions()
     boards: dict[int, list] = {}
     for st in daemon.ordered_stacks():
         boards.setdefault(st.board_id, []).append(st)
