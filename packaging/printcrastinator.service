@@ -1,5 +1,8 @@
 [Unit]
 Description=Printcrastinator daemon and web UI
+# Start once the desktop session is up so the morning window and notification can appear.
+After=graphical-session.target
+PartOf=graphical-session.target
 
 [Service]
 Type=simple
@@ -10,4 +13,4 @@ RestartSec=5
 Environment=PYTHONUNBUFFERED=1
 
 [Install]
-WantedBy=default.target
+WantedBy=graphical-session.target

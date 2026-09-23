@@ -69,8 +69,15 @@ class TaskRow(Static):
         self.set_class(self.done, "done")
         self.set_class(self.busy, "busy")
 
-    def on_click(self) -> None:
-        self.app.toggle_task(self)  # type: ignore[attr-defined]
+    def on_click(self, event) -> None:
+        """Only the checkbox at the left toggles. A click on the text (e.g. to focus the
+        window) must never complete a task."""
+        if event.x <= 4:
+            self.app.toggle_task(self)  # type: ignore[attr-defined]
+        else:
+            self.app.notify(
+                "click the [ ] box to cross a task off", severity="information", timeout=2
+            )
 
 
 class TaskView(App):

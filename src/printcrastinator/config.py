@@ -82,8 +82,12 @@ class PrinterConfig:
     # The Anjet 58 crashes its USB link when raster data arrives faster than it prints
     # (~270 lines/s), and its flow control cannot be trusted. Small bands sent at just under
     # the head speed keep it fed continuously without ever overrunning its buffer.
-    band_lines: int = 16
-    lines_per_second: int = 240
+    band_lines: int = 32
+    lines_per_second: int = 250
+    # Lines sent ahead of the pace at the start of a job (buffered in the printer) so the
+    # motor never stops waiting for the next band. ~20 mm; the printer survived 128-line
+    # bursts, so this stays well below its buffer.
+    lead_lines: int = 160
     # Paper feed after the last printed line so the tear line reaches the tear bar.
     feed_after_mm: int = 10
     # Heating density chosen with test-print. None = printer default.

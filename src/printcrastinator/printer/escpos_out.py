@@ -110,22 +110,25 @@ class Printer:
             p._raw(b"\n" * lines)
 
     def _send_image(self, p: File, img: Image.Image) -> None:
-        """Send the image in bands, flushing each and pacing to the print speed."""
+        """Send the image in bands, keeping the printer's buffer a fixed lead ahead of the
+        head. The first `lead_lines` go out immediately so the motor never waits for data;
+        after that bands are released at `lines_per_second` (just under the head speed), so
+        the buffer never grows beyond the lead and the printer is never overrun."""
         if img.width != self.cfg.width_px:
             img = img.resize((self.cfg.width_px, int(img.height * self.cfg.width_px / img.width)))
         band = max(8, self.cfg.band_lines)
-        band_time = band / max(1, self.cfg.lines_per_second)
+        rate = max(1, self.cfg.lines_per_second)
+        lead = max(0, self.cfg.lead_lines)
+        t0 = time.monotonic()
+        sent = 0
         for y in range(0, img.height, band):
+            allowed = lead + (time.monotonic() - t0) * rate
+            if sent + band > allowed:
+                time.sleep((sent + band - allowed) / rate)
             part = img.crop((0, y, img.width, min(y + band, img.height)))
-            t0 = time.monotonic()
             p.image(part, impl="bitImageRaster", fragment_height=band, center=False)
             p.flush()
-            # The write blocks while the printer's buffer is full, i.e. the printer itself
-            # sets the pace. Only sleep for whatever part of the band time the write did not
-            # already take, so the head never runs dry between bands.
-            remaining = band_time - (time.monotonic() - t0)
-            if remaining > 0:
-                time.sleep(remaining)
+            sent += part.height
 
     def _finish(self, p: File) -> None:
         self._feed_mm(p, self.cfg.feed_after_mm)

@@ -409,6 +409,9 @@ def sec_printer(daemon: Daemon) -> None:
             min=20,
             max=2000,
         ).tooltip("Lower this if the printer resets or drops data on long receipts")
+        lead = ui.number(
+            "Lead (lines buffered ahead)", value=cfg.printer.lead_lines, min=0, max=1024, step=8
+        ).tooltip("Higher = smoother motion, too high overruns the printer's buffer")
         feed = ui.number(
             "Feed after print (mm)", value=cfg.printer.feed_after_mm, min=0, max=150
         ).tooltip("Space below the last line so you can tear off without cutting into text")
@@ -430,6 +433,7 @@ def sec_printer(daemon: Daemon) -> None:
                 width_px=int(width.value),
                 band_lines=int(band.value),
                 lines_per_second=int(lps.value),
+                lead_lines=int(lead.value),
                 feed_after_mm=int(feed.value),
                 density=density.value or "",
                 fallback_codepage=codepage.value.strip() or "CP858",
