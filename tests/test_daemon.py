@@ -136,8 +136,9 @@ async def test_new_event_today_reprints_calendar(tmp_path):
         "jj",
         "JJ",
     )
-    await d.poll_once()  # seeds
+    await d.poll_once()  # seeds; the daily receipt prints (hour gate is 0 in tests)
     n0 = len(d.printer.images)
+    assert d.db.daily_status(DAY) is not None
 
     async def refresh2(today):
         d.state.tasks = [t("a", "Existing")]
@@ -151,3 +152,34 @@ async def test_new_event_today_reprints_calendar(tmp_path):
     await d.poll_once()
     assert len(d.printer.images) == n0 + 1  # not again
     assert d.db.is_seen("e-new", "event")
+
+
+async def test_day_change_does_not_reprint_calendar(tmp_path):
+    from datetime import datetime
+
+    from printcrastinator.models import CalendarEvent
+
+    d = make(tmp_path, [t("a", "Existing")], hour=24)  # before the morning: no daily print
+    tz = datetime.now().astimezone().tzinfo
+    ev = CalendarEvent(
+        "e-midnight",
+        "Tomorrow's thing",
+        datetime.now(tz).replace(hour=10),
+        datetime.now(tz).replace(hour=11),
+        False,
+        "jj",
+        "JJ",
+    )
+    await d.poll_once()  # seeds
+
+    async def refresh2(today):
+        d.state.tasks = [t("a", "Existing")]
+        d.state.events = [ev]  # new day's events enter scope
+        d.state.errors = {}
+        return True
+
+    d._refresh_sources = refresh2
+    d._events_day = None  # simulate the day change
+    await d.poll_once()
+    assert d.printer.images == []  # nothing printed at midnight
+    assert d.db.is_seen("e-midnight", "event")

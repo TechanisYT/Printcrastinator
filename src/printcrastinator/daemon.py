@@ -67,6 +67,7 @@ class Daemon:
         self.polls = 0
         self._pending: dict[tuple[str, str], TaskItem] = {}
         self._pending_events: dict[tuple[str, str], CalendarEvent] = {}
+        self._events_day: date | None = None
         self._pending_since: float = 0.0
         self._wake = asyncio.Event()
         self._lock = asyncio.Lock()
@@ -547,7 +548,14 @@ class Daemon:
             self.seeded = True
             log.info("seeded %d seen items, no slips for existing tasks", len(keys))
             return
-        if self.cfg.slips.enabled_events:
+        today = date.today()
+        daily_done = self.db.daily_status(today) is not None
+        if self._events_day != today:
+            # Day changed: today's events are in scope for the first time, not "new".
+            # The morning receipt shows them; nothing to reprint.
+            self.db.mark_seen(event_keys)
+            self._events_day = today
+        elif self.cfg.slips.enabled_events and daily_done:
             for e in self.state.events:
                 k = (e.uid, "event")
                 if k in self.db.unseen([k]) and k not in self._pending_events:
@@ -555,6 +563,7 @@ class Daemon:
                     if not self._pending_since:
                         self._pending_since = time.time()
         else:
+            # before the morning receipt (or feature off): the daily print will include them
             self.db.mark_seen(event_keys)
         suppressed = self.db.suppressed_keys()
         new = self.db.unseen(keys)
