@@ -79,11 +79,11 @@ class PrinterConfig:
     width_px: int = 384
     # Raster data is sent in bands of this many dot lines, paced to lines_per_second so the
     # printer's small buffer never overflows (cheap printers reset on USB when flooded).
-    # The printer throttles the USB write itself when its buffer is full; this rate is only a
-    # ceiling above the head's real speed (~270 lines/s on the Anjet 58) so bands never
-    # arrive faster than that in bursts.
-    band_lines: int = 128
-    lines_per_second: int = 600
+    # The Anjet 58 crashes its USB link when raster data arrives faster than it prints
+    # (~270 lines/s), and its flow control cannot be trusted. Small bands sent at just under
+    # the head speed keep it fed continuously without ever overrunning its buffer.
+    band_lines: int = 16
+    lines_per_second: int = 240
     # Paper feed after the last printed line so the tear line reaches the tear bar.
     feed_after_mm: int = 10
     # Heating density chosen with test-print. None = printer default.
