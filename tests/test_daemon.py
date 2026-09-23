@@ -118,3 +118,36 @@ async def test_print_selection_refuses_without_filter(tmp_path):
     assert d.printer.images == []
     r = await d.print_selection("Personal", list_ids=["personal"])
     assert r["printed"] and len(d.printer.images) == 1
+
+
+async def test_new_event_today_reprints_calendar(tmp_path):
+    from datetime import datetime
+
+    from printcrastinator.models import CalendarEvent
+
+    d = make(tmp_path, [t("a", "Existing")])
+    tz = datetime.now().astimezone().tzinfo
+    ev = CalendarEvent(
+        "e-new",
+        "Pizza",
+        datetime.now(tz).replace(hour=18, minute=0),
+        datetime.now(tz).replace(hour=19, minute=0),
+        False,
+        "jj",
+        "JJ",
+    )
+    await d.poll_once()  # seeds
+    n0 = len(d.printer.images)
+
+    async def refresh2(today):
+        d.state.tasks = [t("a", "Existing")]
+        d.state.events = [ev]
+        d.state.errors = {}
+        return True
+
+    d._refresh_sources = refresh2
+    await d.poll_once()
+    assert len(d.printer.images) == n0 + 1  # calendar reprinted once
+    await d.poll_once()
+    assert len(d.printer.images) == n0 + 1  # not again
+    assert d.db.is_seen("e-new", "event")

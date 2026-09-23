@@ -66,6 +66,7 @@ class Daemon:
         self.last_poll_at: float = 0.0
         self.polls = 0
         self._pending: dict[tuple[str, str], TaskItem] = {}
+        self._pending_events: dict[tuple[str, str], CalendarEvent] = {}
         self._pending_since: float = 0.0
         self._wake = asyncio.Event()
         self._lock = asyncio.Lock()
@@ -540,11 +541,21 @@ class Daemon:
             t for t in self.state.cards if self.cfg.slips.enabled_deck
         ]
         keys = [(t.uid, t.source) for t in items]
+        event_keys = [(e.uid, "event") for e in self.state.events]
         if not self.seeded:
-            self.db.mark_seen(keys)
+            self.db.mark_seen(keys + event_keys)
             self.seeded = True
             log.info("seeded %d seen items, no slips for existing tasks", len(keys))
             return
+        if self.cfg.slips.enabled_events:
+            for e in self.state.events:
+                k = (e.uid, "event")
+                if k in self.db.unseen([k]) and k not in self._pending_events:
+                    self._pending_events[k] = e
+                    if not self._pending_since:
+                        self._pending_since = time.time()
+        else:
+            self.db.mark_seen(event_keys)
         suppressed = self.db.suppressed_keys()
         new = self.db.unseen(keys)
         for t in items:
@@ -559,28 +570,47 @@ class Daemon:
             self.db.mark_seen(gone)
 
     def _slip_due_in(self) -> float:
-        if not self._pending:
+        if not self._pending and not self._pending_events:
             return 1e9
         return self._pending_since + self.cfg.slips.debounce_seconds - time.time()
 
     async def maybe_print_slip(self, force: bool = False) -> bool:
-        if not self._pending or (not force and self._slip_due_in() > 0):
+        if (not self._pending and not self._pending_events) or (
+            not force and self._slip_due_in() > 0
+        ):
             return False
-        items = list(self._pending.values())
-        try:
-            img = render_image.render(
-                layout.slip_receipt(items, datetime.now(), self.cfg.ui.language)
-            )
-            await asyncio.to_thread(self.printer.print_image, img)
-        except PrinterError as exc:
-            self.db.log("slip", False, str(exc))
-            log.error("slip print failed: %s", exc)
-            return False
-        self.db.mark_seen(list(self._pending))
-        self.db.log("slip", True, ", ".join(t.title for t in items)[:500])
-        self._pending.clear()
+        printed = False
+        if self._pending:
+            items = list(self._pending.values())
+            try:
+                img = render_image.render(
+                    layout.slip_receipt(
+                        items, datetime.now(), self.cfg.ui.language, self.layout_options()
+                    )
+                )
+                await asyncio.to_thread(self.printer.print_image, img)
+            except PrinterError as exc:
+                self.db.log("slip", False, str(exc))
+                log.error("slip print failed: %s", exc)
+                return False
+            self.db.mark_seen(list(self._pending))
+            self.db.log("slip", True, ", ".join(t.title for t in items)[:500])
+            self._pending.clear()
+            printed = True
+        if self._pending_events:
+            names = ", ".join(e.title for e in self._pending_events.values())
+            try:
+                await self.print_calendar(date.today())
+            except PrinterError as exc:
+                self.db.log("calendar", False, f"new events: {exc}")
+                log.error("calendar reprint failed: %s", exc)
+                return printed
+            self.db.mark_seen(list(self._pending_events))
+            self.db.log("calendar", True, f"reprinted for new events: {names}"[:500])
+            self._pending_events.clear()
+            printed = True
         self._pending_since = 0.0
-        return True
+        return printed
 
     # ---- printer helpers -------------------------------------------------------------------------
 
@@ -608,7 +638,7 @@ class Daemon:
             "polls": self.polls,
             "last_error": self.state.last_error,
             "errors": self.state.errors,
-            "pending_slip_items": len(self._pending),
+            "pending_slip_items": len(self._pending) + len(self._pending_events),
             "daily": self.db.daily_status(date.today()),
             "printer": self.printer_status(),
             "counts": {

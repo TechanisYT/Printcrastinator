@@ -824,6 +824,10 @@ def sec_settings(daemon: Daemon, dark: ui.dark_mode) -> None:
         ui.label("New-task slips").classes("font-bold")
         s_tasks = ui.switch("Slips for Nextcloud Tasks", value=cfg.slips.enabled_tasks)
         s_deck = ui.switch("Slips for Deck cards", value=cfg.slips.enabled_deck)
+        s_events = ui.switch(
+            "Reprint today's calendar when a new event for today appears",
+            value=cfg.slips.enabled_events,
+        )
         debounce = ui.number(
             "Debounce (seconds)", value=cfg.slips.debounce_seconds, min=0, max=3600
         )
@@ -927,6 +931,7 @@ def sec_settings(daemon: Daemon, dark: ui.dark_mode) -> None:
             cfg.slips,
             enabled_tasks=bool(s_tasks.value),
             enabled_deck=bool(s_deck.value),
+            enabled_events=bool(s_events.value),
             debounce_seconds=int(debounce.value),
         )
         cfg.server = replace(cfg.server, poll_interval=int(poll.value))

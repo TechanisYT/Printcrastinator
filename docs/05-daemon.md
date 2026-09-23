@@ -55,3 +55,6 @@ which sends the notification and opens the terminal window.
   first queued item a single slip listing all queued items is printed, then they are marked seen.
   If printing fails they stay queued and are retried next tick.
 - Per-source toggles `slips.enabled_tasks` / `slips.enabled_deck`.
+- New events for today (`slips.enabled_events`): instead of a slip, today's calendar-only
+  receipt is reprinted after the same debounce, so the new event is seen in context. Event
+  uids are tracked in `seen_items` with source `event`.

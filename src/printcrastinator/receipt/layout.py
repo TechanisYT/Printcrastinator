@@ -459,23 +459,33 @@ def custom_receipt(
     return r
 
 
-def slip_receipt(items: list[TaskItem], now: datetime, lang: str = "en") -> Receipt:
+def slip_receipt(
+    items: list[TaskItem], now: datetime, lang: str = "en", opt: Options | None = None
+) -> Receipt:
+    """New-task slip with the same layering as the daily receipt: NEW header, then the list or
+    stack as a subheader, then the items with their notes and a due marker."""
+    opt = opt or Options()
     r = Receipt()
     r.add(
         Rule(3),
         Spacer(6),
-        SectionHeader(f"{i18n.label(lang, 'new')}  ·  {now.strftime('%H:%M')}"),
+        SectionHeader(
+            f"{i18n.label(lang, 'new')}  ·  {now.strftime('%H:%M')}", hint=str(len(items))
+        ),
     )
     today = now.date()
-    for t in items:
-        if t.due is None:
-            due = ""
-        elif t.due == today:
-            due = i18n.label(lang, "today_word")
-        else:
-            due = f"{i18n.label(lang, 'due_prefix')} {t.due.strftime('%d.%m')}"
-        meta = " · ".join(p for p in (t.list_name, due) if p)
-        r.add(CheckItem(t.title, meta=meta))
+    for name, group in _by_list(items, lang, today):
+        r.add(SubHeader(name))
+        for t in group:
+            if t.due is None:
+                right = ""
+            elif t.due == today:
+                right = i18n.label(lang, "today_word")
+            elif t.due < today:
+                right = i18n.label(lang, "late", n=(today - t.due).days)
+            else:
+                right = t.due.strftime("%d.%m")
+            r.add(CheckItem(t.title, right=right, meta=_notes(t, opt)))
     r.add(Spacer(6), Rule(1), Spacer(4), TearLine())
     return r
 

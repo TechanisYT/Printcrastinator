@@ -128,7 +128,9 @@ The date line always uses the configured locale for the weekday and month.
 │ ────────────────────────────   │
 └────────────────────────────────┘
 ```
-One slip per debounce window listing all new items.
+One slip per debounce window listing all new items, with the same layering as the daily
+receipt: NEW header with the count, the list or stack as a subheader, then the items with
+notes/tags and a due marker (today, -Nd, or the date).
 
 ## Empty day
 

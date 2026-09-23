@@ -130,6 +130,8 @@ class DailyConfig:
 class SlipConfig:
     enabled_tasks: bool = True
     enabled_deck: bool = True
+    # A new event for today reprints today's calendar (events only).
+    enabled_events: bool = True
     debounce_seconds: int = 60
 
 
