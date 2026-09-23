@@ -63,16 +63,30 @@ def sec_dashboard(daemon: Daemon) -> None:
     with ui.row().classes("w-full items-start gap-6"):
         with ui.column().classes("gap-2"):
             ui.label("Today's receipt").classes("text-lg font-bold")
-            img = (
-                ui.image(f"/api/preview.png?kind=live&t={time.time()}")
-                .classes("w-[300px] border shadow bg-white")
-                .style("image-rendering: pixelated")
-            )
+            # The receipt can be very long, so it lives in a scrollable dialog, not inline.
+            with ui.dialog() as preview_dialog, ui.card().classes("items-center"):
+                img = (
+                    ui.image()
+                    .classes("w-[340px] border shadow bg-white")
+                    .style("image-rendering: pixelated")
+                )
+                ui.button("Close", on_click=preview_dialog.close).props("flat")
+
+            class _Preview:
+                """`img.set_source(url)` also opens the dialog (used by all preview buttons)."""
+
+                def set_source(self, url: str) -> None:
+                    img.set_source(url)
+                    preview_dialog.open()
+
+            img_proxy = _Preview()
             with ui.row():
                 ui.button(
-                    "Refresh",
-                    icon="refresh",
-                    on_click=lambda: img.set_source(f"/api/preview.png?kind=live&t={time.time()}"),
+                    "Show today's receipt",
+                    icon="receipt_long",
+                    on_click=lambda: img_proxy.set_source(
+                        f"/api/preview.png?kind=live&t={time.time()}"
+                    ),
                 ).props("outline")
                 ui.button(
                     "Print today now",
@@ -123,7 +137,7 @@ def sec_dashboard(daemon: Daemon) -> None:
                 ui.button(
                     "Preview",
                     icon="visibility",
-                    on_click=lambda: img.set_source(
+                    on_click=lambda: img_proxy.set_source(
                         f"/api/preview.png?kind=live&day={day_in.value}"
                         f"&layout_mode={day_layout.value}&t={time.time()}"
                     ),
@@ -164,8 +178,13 @@ def sec_dashboard(daemon: Daemon) -> None:
             ui.timer(5.0, refresh_status)
             with ui.row():
                 ui.button(
-                    "Poll now", icon="sync", on_click=lambda: _run(daemon.poll_once(), "poll")
-                ).props("outline")
+                    "Refresh from Nextcloud",
+                    icon="sync",
+                    on_click=lambda: _run(daemon.poll_once(), "refreshed"),
+                ).props("outline").tooltip(
+                    "Fetch tasks, Deck cards, calendars and birthdays from Nextcloud now "
+                    "(otherwise every poll interval)"
+                )
                 ui.button(
                     "Notify",
                     icon="notifications",
@@ -202,7 +221,7 @@ def sec_dashboard(daemon: Daemon) -> None:
         ui.button(
             "Preview",
             icon="visibility",
-            on_click=lambda: img.set_source(
+            on_click=lambda: img_proxy.set_source(
                 f"/api/preview.png?kind=calendar&day={cal_from.value}"
                 f"&day_to={cal_to.value}&t={time.time()}"
             ),

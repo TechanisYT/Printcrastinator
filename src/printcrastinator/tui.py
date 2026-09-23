@@ -98,7 +98,7 @@ class TaskView(App):
     """
     BINDINGS = [
         Binding("q", "quit", "Quit"),
-        Binding("r", "refresh", "Refresh"),
+        Binding("r", "refresh", "Refresh from Nextcloud"),
         Binding("p", "print_receipt", "Print"),
         Binding("t", "print_tomorrow", "Print tomorrow"),
         Binding("a", "focus_ai", "Ask AI"),
@@ -165,9 +165,12 @@ class TaskView(App):
     # ---- data ------------------------------------------------------------------------------------
 
     @work(exclusive=True, group="agenda")
-    async def load_agenda(self, summary: bool = False) -> None:
+    async def load_agenda(self, summary: bool = False, poll: bool = False) -> None:
         try:
             async with self._client() as c:
+                if poll:  # explicit refresh: fetch from Nextcloud first
+                    self.notify("refreshing from Nextcloud…", timeout=3)
+                    await c.post("/api/poll")
                 await c.post("/api/print/daily")  # daily gate (screen-only if already done)
                 r = await c.get("/api/agenda")
                 r.raise_for_status()
@@ -294,7 +297,7 @@ class TaskView(App):
         row.refresh_text()
 
     def action_refresh(self) -> None:
-        self.load_agenda()
+        self.load_agenda(poll=True)
 
     def action_focus_ai(self) -> None:
         self.query_one("#ai-input", Input).focus()
