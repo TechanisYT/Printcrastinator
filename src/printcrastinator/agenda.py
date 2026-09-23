@@ -18,11 +18,16 @@ def build(
     always_stacks: set[tuple[int, int]],
     overdue_max_days: int = 0,
     overdue_max_count: int = 0,
+    group_rank: dict[str, int] | None = None,
 ) -> DailyAgenda:
+    """group_rank: list_id -> position for the always-print groups (Deck 'board/stack' ids in
+    the user's or Nextcloud's order); groups without a rank follow alphabetically."""
     overdue: list[TaskItem] = []
     due_today: list[TaskItem] = []
     groups: dict[str, TaskGroup] = {}
+    group_ids: dict[str, str] = {}
     seen: set[str] = set()
+    rank = group_rank or {}
 
     for t in tasks + cards:
         if t.completed or t.uid in seen or t.suppression_key() in suppressed:
@@ -39,6 +44,7 @@ def build(
             due_today.append(t)
         elif always:
             groups.setdefault(t.list_name, TaskGroup(t.list_name)).items.append(t)
+            group_ids.setdefault(t.list_name, t.list_id)
 
     overdue.sort(key=lambda t: (t.due, t.title.lower()))  # type: ignore[arg-type]
     total_overdue = len(overdue)
@@ -57,7 +63,10 @@ def build(
         events=ev,
         overdue=overdue,
         due_today=due_today,
-        always=[groups[k] for k in sorted(groups)],
+        always=[
+            groups[k]
+            for k in sorted(groups, key=lambda n: (rank.get(group_ids[n], 10**6), n.lower()))
+        ],
         overdue_hidden=overdue_hidden,
     )
 

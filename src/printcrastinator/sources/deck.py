@@ -21,6 +21,7 @@ class DeckStack:
     board_title: str
     stack_id: int
     stack_title: str
+    order: int = 0  # Nextcloud's own stack order within the board
 
 
 class DeckClient:
@@ -51,13 +52,14 @@ class DeckClient:
         stacks: list[DeckStack] = []
         items: list[TaskItem] = []
         for board, board_stacks in await self.boards_and_stacks():
-            for s in board_stacks:
+            for s in sorted(board_stacks, key=lambda x: int(x.get("order") or 0)):
                 stacks.append(
                     DeckStack(
                         int(board["id"]),
                         str(board.get("title", "")),
                         int(s["id"]),
                         str(s.get("title", "")),
+                        int(s.get("order") or 0),
                     )
                 )
             items.extend(parse_deck_cards(board, board_stacks, self.nc.base_url))

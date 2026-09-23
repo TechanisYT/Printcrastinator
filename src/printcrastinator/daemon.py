@@ -102,7 +102,10 @@ class Daemon:
             self.state.cards = [_task_from_dict(x) for x in d["cards"]]
             self.state.events = [_event_from_dict(x) for x in d["events"]]
             self.state.collections = [Collection(**c) for c in d["collections"]]
-            self.state.stacks = [DeckStack(**st) for st in d["stacks"]]
+            self.state.stacks = [
+                DeckStack(**{k: v for k, v in st.items() if k in DeckStack.__dataclass_fields__})
+                for st in d["stacks"]
+            ]
             self.state.birthdays = [
                 Birthday(b["name"], date.fromisoformat(b["day"]), b.get("age"), b.get("uid", ""))
                 for b in d.get("birthdays", [])
@@ -263,6 +266,7 @@ class Daemon:
             always_stacks=self.db.always_print_stacks(),
             overdue_max_days=self.cfg.daily.overdue_max_days,
             overdue_max_count=self.cfg.daily.overdue_max_count,
+            group_rank=self.group_rank(),
         )
         ag.birthdays = list(self.state.birthdays)
         return ag
@@ -306,6 +310,7 @@ class Daemon:
             always_stacks=self.db.always_print_stacks(),
             overdue_max_days=self.cfg.daily.overdue_max_days,
             overdue_max_count=self.cfg.daily.overdue_max_count,
+            group_rank=self.group_rank(),
         )
 
     async def calendar_days(self, day_from: date, day_to: date) -> list[tuple[date, list]]:
@@ -862,13 +867,41 @@ class Daemon:
                 log.debug("board meta %s: %s", bid, exc)
         return out
 
+    def ordered_stacks(self) -> list[DeckStack]:
+        """Stacks in the user's custom order per board, else Nextcloud's order. Boards keep
+        Nextcloud's order. Polls only refresh the stacks, never this order."""
+        pos = self.db.stack_positions()
+        board_seq: dict[int, int] = {}
+        for st in self.state.stacks:
+            board_seq.setdefault(st.board_id, len(board_seq))
+        return sorted(
+            self.state.stacks,
+            key=lambda st: (
+                board_seq[st.board_id],
+                pos.get((st.board_id, st.stack_id), 10**6),
+                st.order,
+                st.stack_title.lower(),
+            ),
+        )
+
+    def group_rank(self) -> dict[str, int]:
+        """list_id -> position for always-print groups: task lists first (Nextcloud order),
+        then Deck stacks in the ordered_stacks() order."""
+        rank: dict[str, int] = {}
+        for c in self.state.collections:
+            if c.vtodo:
+                rank[c.id] = len(rank)
+        for st in self.ordered_stacks():
+            rank[f"{st.board_id}/{st.stack_id}"] = len(rank)
+        return rank
+
     def task_lists(self) -> list[dict[str, Any]]:
         out = [
             {"id": c.id, "name": c.name, "source": "tasks"}
             for c in self.state.collections
             if c.vtodo
         ]
-        for st in self.state.stacks:
+        for st in self.ordered_stacks():
             out.append(
                 {
                     "id": f"{st.board_id}/{st.stack_id}",

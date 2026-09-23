@@ -74,3 +74,14 @@ def test_overdue_filters_combine():
     assert [x.uid for x in ag.overdue] == ["o20", "o5", "o1"] and ag.overdue_hidden == 2
     ag = agenda.build(DAY, tasks, [], [], overdue_max_days=30, overdue_max_count=2, **kw)
     assert [x.uid for x in ag.overdue] == ["o5", "o1"] and ag.overdue_hidden == 3
+
+
+def test_always_groups_follow_rank_then_alpha():
+    cards = [
+        t("deck:1", "A", None, "deck", "3/10", 3, 10),
+        t("deck:2", "B", None, "deck", "3/11", 3, 11),
+        t("deck:3", "C", None, "deck", "3/12", 3, 12),
+    ]
+    kw = dict(suppressed=set(), always_lists=set(), always_stacks={(3, 10), (3, 11), (3, 12)})
+    ag = agenda.build(DAY, [], cards, [], group_rank={"3/12": 0, "3/10": 1}, **kw)
+    assert [g.title for g in ag.always] == ["3/12", "3/10", "3/11"]

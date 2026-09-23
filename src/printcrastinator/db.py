@@ -63,6 +63,12 @@ CREATE TABLE IF NOT EXISTS quotes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     text TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS stack_order (
+    board_id INTEGER NOT NULL,
+    stack_id INTEGER NOT NULL,
+    position INTEGER NOT NULL,
+    PRIMARY KEY (board_id, stack_id)
+);
 CREATE TABLE IF NOT EXISTS custom_lists (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
@@ -371,3 +377,24 @@ class Database:
     def delete_custom_list(self, list_id: int) -> None:
         with self.connect() as con:
             con.execute("DELETE FROM custom_lists WHERE id = ?", (list_id,))
+
+    # ---- custom stack order (set by the user; polls never touch it) ---------------------
+
+    def stack_positions(self) -> dict[tuple[int, int], int]:
+        with self.connect() as con:
+            return {
+                (r[0], r[1]): r[2]
+                for r in con.execute("SELECT board_id, stack_id, position FROM stack_order")
+            }
+
+    def set_stack_order(self, board_id: int, stack_ids: list[int]) -> None:
+        with self.connect() as con:
+            con.execute("DELETE FROM stack_order WHERE board_id = ?", (board_id,))
+            con.executemany(
+                "INSERT INTO stack_order(board_id, stack_id, position) VALUES (?, ?, ?)",
+                [(board_id, sid, i) for i, sid in enumerate(stack_ids)],
+            )
+
+    def clear_stack_order(self, board_id: int) -> None:
+        with self.connect() as con:
+            con.execute("DELETE FROM stack_order WHERE board_id = ?", (board_id,))

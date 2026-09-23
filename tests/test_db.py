@@ -52,3 +52,14 @@ def test_custom_lists_roundtrip(tmp_path):
     assert row["items"] == ["Milk", "Eggs", "Bread"] and row["printed_at"]
     db.delete_custom_list(lid)
     assert db.custom_lists() == []
+
+
+def test_stack_order_roundtrip(tmp_path):
+    db = Database(tmp_path / "s.sqlite3")
+    assert db.stack_positions() == {}
+    db.set_stack_order(4, [12, 9, 13])
+    assert db.stack_positions() == {(4, 12): 0, (4, 9): 1, (4, 13): 2}
+    db.set_stack_order(4, [9, 12, 13])
+    assert db.stack_positions()[(4, 9)] == 0
+    db.clear_stack_order(4)
+    assert db.stack_positions() == {}

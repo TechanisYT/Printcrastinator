@@ -361,27 +361,70 @@ def sec_tasks(daemon: Daemon) -> None:
 
 
 def sec_deck(daemon: Daemon) -> None:
-    ui.label("Always-print stacks").classes("text-lg font-bold")
-    ui.label("Cards in these stacks are printed every day regardless of due date.").classes(
-        "text-sm opacity-70"
-    )
+    ui.label("Deck stacks").classes("text-lg font-bold")
+    ui.label(
+        "Switch on 'always print' for stacks whose cards should be on every receipt regardless "
+        "of due date. The arrows change the order of the stacks (on the receipt, in the "
+        "terminal view and in the lists here); by default it is Nextcloud's order. A custom "
+        "order is kept across refreshes from Nextcloud until you reset it."
+    ).classes("text-sm opacity-70")
     always = daemon.db.always_print_stacks()
+    custom = daemon.db.stack_positions()
     boards: dict[int, list] = {}
-    for s in daemon.state.stacks:
-        boards.setdefault(s.board_id, []).append(s)
+    for st in daemon.ordered_stacks():
+        boards.setdefault(st.board_id, []).append(st)
     if not boards:
-        ui.label("No boards loaded yet. Poll from the dashboard.").classes("opacity-70")
-    for stacks in boards.values():
-        with ui.card().classes("w-full"):
-            ui.label(stacks[0].board_title).classes("font-bold")
-            for s in stacks:
-                ui.switch(
-                    s.stack_title,
-                    value=(s.board_id, s.stack_id) in always,
-                    on_change=lambda e, s=s: daemon.db.set_stack_rule(
-                        s.board_id, s.stack_id, bool(e.value)
-                    ),
-                )
+        ui.label("No boards loaded yet. Refresh from the dashboard.").classes("opacity-70")
+    container = ui.column().classes("w-full gap-2")
+
+    def move(board_id: int, stack_id: int, delta: int) -> None:
+        ids = [st.stack_id for st in boards[board_id]]
+        i = ids.index(stack_id)
+        j = i + delta
+        if 0 <= j < len(ids):
+            ids[i], ids[j] = ids[j], ids[i]
+            daemon.db.set_stack_order(board_id, ids)
+            boards[board_id] = sorted(boards[board_id], key=lambda st: ids.index(st.stack_id))
+            render()
+
+    def reset(board_id: int) -> None:
+        daemon.db.clear_stack_order(board_id)
+        boards[board_id] = sorted(boards[board_id], key=lambda st: (st.order, st.stack_title))
+        render()
+
+    def render() -> None:
+        container.clear()
+        custom_now = daemon.db.stack_positions()
+        with container:
+            for board_id, stacks in boards.items():
+                with ui.card().classes("w-full"):
+                    with ui.row().classes("w-full items-center"):
+                        ui.label(stacks[0].board_title).classes("font-bold grow")
+                        if any((board_id, st.stack_id) in custom_now for st in stacks):
+                            ui.button(
+                                "Reset to Nextcloud order",
+                                icon="restart_alt",
+                                on_click=lambda b=board_id: reset(b),
+                            ).props("flat dense")
+                    for idx, st in enumerate(stacks):
+                        with ui.row().classes("w-full items-center"):
+                            ui.button(
+                                icon="arrow_upward",
+                                on_click=lambda st=st: move(st.board_id, st.stack_id, -1),
+                            ).props("flat dense").set_enabled(idx > 0)
+                            ui.button(
+                                icon="arrow_downward",
+                                on_click=lambda st=st: move(st.board_id, st.stack_id, 1),
+                            ).props("flat dense").set_enabled(idx < len(stacks) - 1)
+                            ui.switch(
+                                st.stack_title,
+                                value=(st.board_id, st.stack_id) in always,
+                                on_change=lambda e, st=st: daemon.db.set_stack_rule(
+                                    st.board_id, st.stack_id, bool(e.value)
+                                ),
+                            )
+
+    render()
 
 
 def sec_lists(daemon: Daemon) -> None:
