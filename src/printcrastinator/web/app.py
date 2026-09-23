@@ -64,13 +64,18 @@ def sec_dashboard(daemon: Daemon) -> None:
         with ui.column().classes("gap-2"):
             ui.label("Today's receipt").classes("text-lg font-bold")
             # The receipt can be very long, so it lives in a scrollable dialog, not inline.
-            with ui.dialog() as preview_dialog, ui.card().classes("items-center"):
+            with (
+                ui.dialog() as preview_dialog,
+                ui.card().classes("items-center").style("max-height: 92vh"),
+            ):
                 spinner = ui.spinner(size="lg")
-                img = (
-                    ui.image()
-                    .classes("w-[340px] border shadow bg-white")
-                    .style("image-rendering: pixelated")
-                )
+                # the receipt is much taller than the screen: scroll inside the dialog
+                with ui.scroll_area().style("height: 80vh; width: 380px"):
+                    img = (
+                        ui.image()
+                        .classes("w-[340px] border shadow bg-white")
+                        .style("image-rendering: pixelated")
+                    )
                 img.on("load", lambda: spinner.set_visibility(False))
                 ui.button("Close", on_click=preview_dialog.close).props("flat")
 
