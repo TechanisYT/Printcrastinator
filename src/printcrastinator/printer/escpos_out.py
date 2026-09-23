@@ -153,8 +153,16 @@ class Printer:
         """Raise PrinterError on failure. Success = open and write did not raise."""
 
         def go(p: File) -> None:
-            self._send_image(p, img)
-            self._finish(p)
+            # The tear-off feed is appended as blank raster rows, so it is part of the same
+            # continuous band stream instead of a separate line-feed motion at the end.
+            pad = self.cfg.feed_after_mm * DOTS_PER_MM
+            if pad > 0:
+                padded = Image.new("1", (img.width, img.height + pad), 1)
+                padded.paste(img, (0, 0))
+                self._send_image(p, padded)
+            else:
+                self._send_image(p, img)
+            p.flush()
 
         self._job(go)
 
